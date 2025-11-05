@@ -3,7 +3,10 @@ import React from "react";
 const menuItems = [
   "Dashboard",
   "Data Import",
+  "Data Explorer",
+  "Validation",
   "Analytics",
+  "Connectors",
   "Reports",
   "Settings",
 ];
@@ -13,7 +16,7 @@ export default function Layout({ children, currentPage, onNavigate }) {
     <div className="flex min-h-screen bg-dark-bg">
       <aside className="w-[220px] bg-transparent p-8 flex flex-col gap-6">
         <div className="flex items-center gap-2.5 pl-2 mb-2">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
             <path
               d="M12 2L2 7L12 12L22 7L12 2Z"
               fill="url(#gradient1)"
@@ -42,7 +45,7 @@ export default function Layout({ children, currentPage, onNavigate }) {
               </linearGradient>
             </defs>
           </svg>
-          <div className="text-lg font-semibold text-text-primary tracking-tight">
+          <div className="text-[22px] font-semibold text-text-primary tracking-tight">
             Syntegra
           </div>
         </div>

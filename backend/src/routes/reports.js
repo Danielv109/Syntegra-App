@@ -34,8 +34,6 @@ router.post("/generate", async (req, res) => {
   try {
     const { clientId, title, type } = req.body;
 
-    console.log(`📄 Generando reporte para cliente: ${clientId}`);
-
     if (!clientId) {
       return res.status(400).json({ error: "clientId is required" });
     }
@@ -47,84 +45,90 @@ router.post("/generate", async (req, res) => {
     );
 
     if (clientResult.rows.length === 0) {
-      console.error(`❌ Cliente ${clientId} no encontrado`);
       return res.status(404).json({ error: "Client not found" });
     }
 
     const client = clientResult.rows[0];
-    console.log(`✓ Cliente encontrado: ${client.name}`);
 
-    // Verificar si hay mensajes
-    const totalMessages = await pool.query(
-      "SELECT COUNT(*) as count FROM messages WHERE client_id = $1",
+    // ============================================
+    // SOLO USAR TABLAS DE RESUMEN - CERO QUERIES A messages
+    // ============================================
+
+    // KPIs desde channel_summary
+    const totalMessagesResult = await pool.query(
+      "SELECT COALESCE(SUM(total_messages), 0) as total FROM channel_summary WHERE client_id = $1",
       [clientId]
     );
 
-    const messageCount = parseInt(totalMessages.rows[0].count);
-    console.log(`📊 Total de mensajes: ${messageCount}`);
+    const totalMessages = parseInt(totalMessagesResult.rows[0]?.total || 0);
 
-    if (messageCount === 0) {
-      console.warn(`⚠️ No hay mensajes para generar reporte`);
-      return res.status(400).json({
-        error:
-          "No hay datos suficientes para generar el reporte. Sube mensajes primero en 'Data Import'.",
-      });
-    }
-
-    // Obtener KPIs
-    const criticalComplaints = await pool.query(
+    // Quejas críticas (única query permitida a messages para reporte)
+    const criticalComplaintsResult = await pool.query(
       `SELECT COUNT(*) as count 
        FROM messages 
-       WHERE client_id = $1 AND sentiment = 'negative' AND intent = 'queja'`,
+       WHERE client_id = $1 
+       AND sentiment = 'negative' 
+       AND intent = 'queja'`,
       [clientId]
     );
 
-    const positiveRate = await pool.query(
+    // Sentimiento positivo desde channel_summary
+    const positiveRateResult = await pool.query(
       `SELECT 
-        ROUND(COUNT(CASE WHEN sentiment = 'positive' THEN 1 END)::numeric / NULLIF(COUNT(*), 0)::numeric * 100, 0) as rate
-       FROM messages 
+        ROUND(
+          (SUM(positive_count)::numeric / NULLIF(SUM(total_messages), 0)::numeric) * 100, 
+          0
+        ) as rate
+       FROM channel_summary
        WHERE client_id = $1`,
       [clientId]
     );
 
-    // Sentimiento por canal
-    const sentimentByChannel = await pool.query(
-      `SELECT 
-        channel,
-        COUNT(CASE WHEN sentiment = 'positive' THEN 1 END) as positive,
-        COUNT(CASE WHEN sentiment = 'neutral' THEN 1 END) as neutral,
-        COUNT(CASE WHEN sentiment = 'negative' THEN 1 END) as negative
-       FROM messages 
-       WHERE client_id = $1 
-       GROUP BY channel`,
+    // Canales activos desde channel_summary
+    const activeChannelsResult = await pool.query(
+      "SELECT COUNT(*) as count FROM channel_summary WHERE client_id = $1",
       [clientId]
     );
 
-    // Temas
-    const topics = await pool.query(
+    // Sentimiento por canal desde channel_summary
+    const sentimentByChannelResult = await pool.query(
+      `SELECT 
+        channel,
+        positive_count as positive,
+        neutral_count as neutral,
+        negative_count as negative
+       FROM channel_summary
+       WHERE client_id = $1`,
+      [clientId]
+    );
+
+    // Topics desde topic_summary
+    const topicsResult = await pool.query(
       `SELECT 
         topic,
-        COUNT(*) as count,
+        total_count as count,
         CASE 
-          WHEN AVG(CASE WHEN sentiment = 'positive' THEN 1 WHEN sentiment = 'negative' THEN -1 ELSE 0 END) > 0.3 THEN 'positive'
-          WHEN AVG(CASE WHEN sentiment = 'positive' THEN 1 WHEN sentiment = 'negative' THEN -1 ELSE 0 END) < -0.3 THEN 'negative'
+          WHEN positive_count > negative_count THEN 'positive'
+          WHEN negative_count > positive_count THEN 'negative'
           ELSE 'neutral'
         END as sentiment
-       FROM messages 
-       WHERE client_id = $1 
-       GROUP BY topic 
-       ORDER BY count DESC 
+       FROM topic_summary
+       WHERE client_id = $1
+       ORDER BY total_count DESC
        LIMIT 5`,
       [clientId]
     );
 
-    // Alertas (mensajes críticos)
-    const alerts = await pool.query(
-      `SELECT text, sentiment, topic, intent
-       FROM messages 
-       WHERE client_id = $1 
-       AND sentiment = 'negative' 
-       ORDER BY timestamp DESC
+    // Alertas críticas desde topic_summary (top 3 problemas)
+    const alertsResult = await pool.query(
+      `SELECT 
+        topic,
+        negative_count,
+        ROUND((negative_count::numeric / NULLIF(total_count, 0)::numeric) * 100, 0) as negative_rate
+       FROM topic_summary
+       WHERE client_id = $1
+       AND negative_count > 0
+       ORDER BY negative_count DESC
        LIMIT 3`,
       [clientId]
     );
@@ -133,54 +137,51 @@ router.post("/generate", async (req, res) => {
       kpis: [
         {
           label: "Total de Mensajes",
-          value: messageCount.toString(),
+          value: totalMessages.toString(),
           delta: null,
           trend: null,
         },
         {
           label: "Quejas Críticas",
-          value: criticalComplaints.rows[0].count.toString(),
+          value: criticalComplaintsResult.rows[0]?.count?.toString() || "0",
           delta: null,
           trend: "down",
         },
         {
           label: "Sentimiento Positivo",
-          value: `${positiveRate.rows[0].rate || 0}%`,
+          value: `${positiveRateResult.rows[0]?.rate || 0}%`,
           delta: null,
-          trend: parseInt(positiveRate.rows[0].rate || 0) >= 60 ? "up" : "down",
+          trend:
+            parseInt(positiveRateResult.rows[0]?.rate || 0) >= 60
+              ? "up"
+              : "down",
         },
         {
           label: "Canales Activos",
-          value: sentimentByChannel.rows.length.toString(),
+          value: activeChannelsResult.rows[0]?.count?.toString() || "0",
           delta: null,
           trend: null,
         },
       ],
-      sentimentByChannel: sentimentByChannel.rows.map((row) => ({
+      sentimentByChannel: sentimentByChannelResult.rows.map((row) => ({
         channel: row.channel,
-        positive: parseInt(row.positive),
-        neutral: parseInt(row.neutral),
-        negative: parseInt(row.negative),
+        positive: parseInt(row.positive || 0),
+        neutral: parseInt(row.neutral || 0),
+        negative: parseInt(row.negative || 0),
       })),
-      topics: topics.rows.map((row) => ({
+      topics: topicsResult.rows.map((row) => ({
         topic: row.topic,
-        count: parseInt(row.count),
+        count: parseInt(row.count || 0),
         sentiment: row.sentiment,
       })),
-      alerts: alerts.rows.map((row) => ({
-        message:
-          row.text.length > 150 ? `${row.text.substring(0, 150)}...` : row.text,
-        severity: row.sentiment === "negative" ? "high" : "medium",
+      alerts: alertsResult.rows.map((row) => ({
+        message: `Tema problemático: "${row.topic}" con ${row.negative_count} menciones negativas (${row.negative_rate}% del total)`,
+        severity: row.negative_rate > 50 ? "high" : "medium",
       })),
     };
 
-    console.log(`🎨 Generando PDF con datos reales...`);
-
-    // Generar PDF
+    console.log(`📄 Generando PDF para cliente ${client.name}...`);
     const { filename, filepath } = await generateReport(reportData, client);
-
-    console.log(`✅ PDF generado exitosamente: ${filename}`);
-    console.log(`📁 Ubicación: ${filepath}`);
 
     // Guardar registro en base de datos
     const reportId = `rpt_${Date.now()}`;
@@ -200,14 +201,14 @@ router.post("/generate", async (req, res) => {
       reportId,
     ]);
 
-    console.log(`💾 Reporte guardado en BD con ID: ${reportId}`);
+    console.log(`✅ PDF generado: ${filename}`);
 
     res.json({
       success: true,
       report: newReport.rows[0],
     });
   } catch (error) {
-    console.error("❌ Error generating report:", error);
+    console.error("Error generating report:", error);
     res
       .status(500)
       .json({ error: "Failed to generate report: " + error.message });
@@ -218,14 +219,11 @@ router.get("/download/:reportId", async (req, res) => {
   try {
     const { reportId } = req.params;
 
-    console.log(`📥 Solicitud de descarga para reporte: ${reportId}`);
-
     const result = await pool.query("SELECT * FROM reports WHERE id = $1", [
       reportId,
     ]);
 
     if (result.rows.length === 0) {
-      console.error(`❌ Reporte ${reportId} no encontrado en BD`);
       return res.status(404).json({ error: "Report not found" });
     }
 
@@ -233,14 +231,9 @@ router.get("/download/:reportId", async (req, res) => {
     const reportsDir = path.join(__dirname, "../../reports");
     const filepath = path.join(reportsDir, report.filename);
 
-    console.log(`📂 Buscando archivo en: ${filepath}`);
-
     if (!fs.existsSync(filepath)) {
-      console.error(`❌ Archivo PDF no existe: ${filepath}`);
       return res.status(404).json({ error: "PDF file not found on disk" });
     }
-
-    console.log(`✅ Enviando PDF: ${report.filename}`);
 
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
@@ -251,7 +244,7 @@ router.get("/download/:reportId", async (req, res) => {
     const fileStream = fs.createReadStream(filepath);
     fileStream.pipe(res);
   } catch (error) {
-    console.error("❌ Error downloading report:", error);
+    console.error("Error downloading report:", error);
     res
       .status(500)
       .json({ error: "Failed to download report: " + error.message });

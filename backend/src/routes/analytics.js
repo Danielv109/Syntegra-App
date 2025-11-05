@@ -11,13 +11,17 @@ router.get("/", async (req, res) => {
       return res.status(400).json({ error: "clientId is required" });
     }
 
-    // Usar SOLO tablas de resumen para máximo rendimiento
-    const totalMessages = await pool.query(
-      "SELECT SUM(total_messages) as total FROM channel_summary WHERE client_id = $1",
+    // ============================================
+    // SOLO USAR TABLAS DE RESUMEN - CERO QUERIES A messages
+    // ============================================
+
+    // Total de mensajes desde channel_summary
+    const totalResult = await pool.query(
+      "SELECT COALESCE(SUM(total_messages), 0) as total FROM channel_summary WHERE client_id = $1",
       [clientId]
     );
 
-    const total = parseInt(totalMessages.rows[0]?.total || 0);
+    const total = parseInt(totalResult.rows[0]?.total || 0);
 
     if (total === 0) {
       return res.json({
@@ -27,25 +31,25 @@ router.get("/", async (req, res) => {
           topChannel: "N/A",
           responseRate: 0,
         },
-        trends: {
-          daily: [],
-          weekly: [],
-        },
+        trends: { daily: [], weekly: [] },
         channelComparison: {},
       });
     }
 
-    // Promedio de sentimiento desde resúmenes
-    const avgSentiment = await pool.query(
+    // Promedio de sentimiento desde channel_summary
+    const avgSentimentResult = await pool.query(
       `SELECT 
-        ROUND((SUM(positive_count)::numeric / NULLIF(SUM(total_messages), 0)::numeric) * 100, 0) as avg
+        ROUND(
+          (SUM(positive_count)::numeric / NULLIF(SUM(total_messages), 0)::numeric) * 100, 
+          0
+        ) as avg
        FROM channel_summary
        WHERE client_id = $1`,
       [clientId]
     );
 
-    // Canal principal desde resúmenes
-    const topChannel = await pool.query(
+    // Canal principal desde channel_summary
+    const topChannelResult = await pool.query(
       `SELECT channel, total_messages
        FROM channel_summary
        WHERE client_id = $1
@@ -54,8 +58,8 @@ router.get("/", async (req, res) => {
       [clientId]
     );
 
-    // Tendencia diaria (últimos 7 días)
-    const dailyTrend = await pool.query(
+    // Tendencia diaria (últimos 7 días) desde daily_analytics
+    const dailyTrendResult = await pool.query(
       `SELECT 
         TO_CHAR(date, 'DD/MM') as date,
         SUM(positive_count) as positive,
@@ -69,8 +73,8 @@ router.get("/", async (req, res) => {
       [clientId]
     );
 
-    // Tendencia semanal (últimas 4 semanas)
-    const weeklyTrend = await pool.query(
+    // Tendencia semanal (últimas 4 semanas) desde daily_analytics
+    const weeklyTrendResult = await pool.query(
       `SELECT 
         'S' || TO_CHAR(date, 'WW') as week,
         SUM(positive_count) as positive,
@@ -79,26 +83,29 @@ router.get("/", async (req, res) => {
        FROM daily_analytics
        WHERE client_id = $1
        AND date >= CURRENT_DATE - INTERVAL '28 days'
-       GROUP BY TO_CHAR(date, 'WW')
-       ORDER BY week ASC`,
+       GROUP BY TO_CHAR(date, 'WW'), DATE_TRUNC('week', date)
+       ORDER BY DATE_TRUNC('week', date) ASC`,
       [clientId]
     );
 
-    // Comparativa por canal
-    const channelComparison = await pool.query(
+    // Comparativa por canal desde channel_summary
+    const channelComparisonResult = await pool.query(
       `SELECT 
         channel,
         total_messages as messages,
-        ROUND((positive_count::numeric / NULLIF(total_messages, 0)::numeric) * 100, 0) as sentiment,
+        ROUND(
+          (positive_count::numeric / NULLIF(total_messages, 0)::numeric) * 100, 
+          0
+        ) as sentiment,
         COALESCE(avg_response_time_hours, 0) as response_hours
        FROM channel_summary
        WHERE client_id = $1`,
       [clientId]
     );
 
-    const channelComp = {};
-    channelComparison.rows.forEach((row) => {
-      channelComp[row.channel] = {
+    const channelComparison = {};
+    channelComparisonResult.rows.forEach((row) => {
+      channelComparison[row.channel] = {
         messages: parseInt(row.messages),
         sentiment: parseInt(row.sentiment || 0),
         responseTime: row.response_hours > 0 ? `${row.response_hours}h` : "N/A",
@@ -108,25 +115,25 @@ router.get("/", async (req, res) => {
     res.json({
       overview: {
         totalMessages: total,
-        avgSentiment: parseInt(avgSentiment.rows[0]?.avg || 0),
-        topChannel: topChannel.rows[0]?.channel || "N/A",
+        avgSentiment: parseInt(avgSentimentResult.rows[0]?.avg || 0),
+        topChannel: topChannelResult.rows[0]?.channel || "N/A",
         responseRate: 0,
       },
       trends: {
-        daily: dailyTrend.rows.map((r) => ({
+        daily: dailyTrendResult.rows.map((r) => ({
           date: r.date,
-          positive: parseInt(r.positive),
-          neutral: parseInt(r.neutral),
-          negative: parseInt(r.negative),
+          positive: parseInt(r.positive || 0),
+          neutral: parseInt(r.neutral || 0),
+          negative: parseInt(r.negative || 0),
         })),
-        weekly: weeklyTrend.rows.map((r) => ({
+        weekly: weeklyTrendResult.rows.map((r) => ({
           week: r.week,
-          positive: parseInt(r.positive),
-          neutral: parseInt(r.neutral),
-          negative: parseInt(r.negative),
+          positive: parseInt(r.positive || 0),
+          neutral: parseInt(r.neutral || 0),
+          negative: parseInt(r.negative || 0),
         })),
       },
-      channelComparison: channelComp,
+      channelComparison,
     });
   } catch (error) {
     console.error("Error fetching analytics:", error);

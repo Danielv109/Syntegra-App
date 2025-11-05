@@ -11,53 +11,38 @@ import DataExplorer from "./components/DataExplorer";
 import Connectors from "./components/Connectors";
 
 export default function App() {
-  const [currentPage, setCurrentPage] = useState("ClientSelector");
-  const [selectedClient, setSelectedClient] = useState(null);
+  const [currentClient, setCurrentClient] = useState(null);
+  const [currentPage, setCurrentPage] = useState("Dashboard");
 
-  const handleClientSelect = (client) => {
-    setSelectedClient(client);
-    setCurrentPage("Dashboard");
-  };
-
-  const handleBackToClients = () => {
-    setSelectedClient(null);
-    setCurrentPage("ClientSelector");
-  };
+  if (!currentClient) {
+    return <ClientSelector onClientSelect={setCurrentClient} />;
+  }
 
   const renderPage = () => {
-    if (!selectedClient) {
-      return <ClientSelector onSelectClient={handleClientSelect} />;
-    }
-
     switch (currentPage) {
       case "Dashboard":
-        return <Dashboard client={selectedClient} />;
+        return <Dashboard client={currentClient} />;
       case "Data Import":
-        return <DataImport client={selectedClient} />;
+        return <DataImport client={currentClient} />;
       case "Analytics":
-        return <Analytics client={selectedClient} />;
+        return <Analytics client={currentClient} />;
       case "Reports":
-        return <Reports client={selectedClient} />;
-      case "Validation":
-        return <ValidationQueue client={selectedClient} />;
-      case "Data Explorer":
-        return <DataExplorer client={selectedClient} />;
-      case "Connectors":
-        return <Connectors client={selectedClient} />;
+        return <Reports client={currentClient} />;
       case "Settings":
-        return <Settings client={selectedClient} />;
+        return <Settings client={currentClient} />;
+      case "Validation":
+        return <ValidationQueue client={currentClient} />;
+      case "Data Explorer":
+        return <DataExplorer client={currentClient} />;
+      case "Connectors":
+        return <Connectors client={currentClient} />;
       default:
-        return <Dashboard client={selectedClient} />;
+        return <Dashboard client={currentClient} />;
     }
   };
 
   return (
-    <Layout
-      currentPage={currentPage}
-      onNavigate={setCurrentPage}
-      selectedClient={selectedClient}
-      onBackToClients={handleBackToClients}
-    >
+    <Layout currentPage={currentPage} onNavigate={setCurrentPage}>
       {renderPage()}
     </Layout>
   );
