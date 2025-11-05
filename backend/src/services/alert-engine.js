@@ -2,8 +2,13 @@ import pool from "../db/connection.js";
 
 export async function generateAlerts(clientId) {
   const alerts = [];
+
   try {
-    // 1. DETECTAR PICOS DESDE daily_analytics
+    // ============================================
+    // 100% TABLAS DE RESUMEN - CERO QUERIES A messages
+    // ============================================
+
+    // 1. Detectar picos desde daily_analytics
     const spikeResult = await pool.query(
       "SELECT COALESCE(SUM(negative_count) FILTER (WHERE date = CURRENT_DATE), 0) as today_negatives, COALESCE(SUM(negative_count) FILTER (WHERE date = CURRENT_DATE - 1), 0) as yesterday_negatives FROM daily_analytics WHERE client_id = $1 AND date >= CURRENT_DATE - INTERVAL '1 day'",
       [clientId]
@@ -15,19 +20,28 @@ export async function generateAlerts(clientId) {
     );
 
     if (yesterdayNegs > 0 && todayNegs > yesterdayNegs * 1.5 && todayNegs > 3) {
+      const increase = Math.round(
+        ((todayNegs - yesterdayNegs) / yesterdayNegs) * 100
+      );
       alerts.push({
         type: "spike",
         severity: "high",
         title: "Incremento anormal de quejas",
-        message: `Se detectó un aumento del ${Math.round(
-          ((todayNegs - yesterdayNegs) / yesterdayNegs) * 100
-        )}% en sentimiento negativo hoy (${todayNegs} vs ${yesterdayNegs} ayer)`,
-        action: "Revisar inmediatamente la causa raíz",
+        message:
+          "Se detectó un aumento del " +
+          increase +
+          "% en sentimiento negativo hoy (" +
+          todayNegs +
+          " vs " +
+          yesterdayNegs +
+          " ayer)",
+        action:
+          "Revisar inmediatamente la causa raíz y establecer plan de acción",
         timestamp: new Date().toISOString(),
       });
     }
 
-    // 2. TEMAS RECURRENTES PROBLEMÁTICOS DESDE topic_summary
+    // 2. Temas recurrentes desde topic_summary
     const recurringResult = await pool.query(
       "SELECT topic, last_7_days_count as mentions, negative_count, ROUND((negative_count::numeric / NULLIF(total_count, 0)::numeric) * 100, 0) as negative_rate FROM topic_summary WHERE client_id = $1 AND negative_count > 5 AND (negative_count::numeric / NULLIF(total_count, 0)::numeric) > 0.4 ORDER BY negative_count DESC LIMIT 1",
       [clientId]
@@ -47,23 +61,17 @@ export async function generateAlerts(clientId) {
           " menciones negativas (" +
           issue.negative_rate +
           "% del total)",
-        action: "Analizar casos de '" + issue.topic + "' y diseñar estrategia",
+        action:
+          "Analizar casos específicos de '" +
+          issue.topic +
+          "' y diseñar estrategia de mejora",
         timestamp: new Date().toISOString(),
       });
     }
 
-    // 3. CAÍDA EN SENTIMIENTO DESDE daily_analytics
+    // 3. Caída en sentimiento desde daily_analytics
     const trendResult = await pool.query(
-      `SELECT 
-        AVG(
-          positive_count::numeric / NULLIF(total_messages, 0)::numeric * 100
-        ) FILTER (WHERE date >= CURRENT_DATE - 6 AND date <= CURRENT_DATE - 3) as previous_rate,
-        AVG(
-          positive_count::numeric / NULLIF(total_messages, 0)::numeric * 100
-        ) FILTER (WHERE date >= CURRENT_DATE - 2 AND date <= CURRENT_DATE) as current_rate
-       FROM daily_analytics
-       WHERE client_id = $1
-       AND date >= CURRENT_DATE - INTERVAL '6 days'`,
+      "SELECT AVG(positive_count::numeric / NULLIF(total_messages, 0)::numeric * 100) FILTER (WHERE date >= CURRENT_DATE - 6 AND date <= CURRENT_DATE - 3) as previous_rate, AVG(positive_count::numeric / NULLIF(total_messages, 0)::numeric * 100) FILTER (WHERE date >= CURRENT_DATE - 2 AND date <= CURRENT_DATE) as current_rate FROM daily_analytics WHERE client_id = $1 AND date >= CURRENT_DATE - INTERVAL '6 days'",
       [clientId]
     );
 
@@ -75,16 +83,19 @@ export async function generateAlerts(clientId) {
         type: "trend",
         severity: "medium",
         title: "Caída en satisfacción del cliente",
-        message: `El sentimiento positivo cayó de ${prevRate.toFixed(
-          1
-        )}% a ${currRate.toFixed(1)}% en los últimos días`,
+        message:
+          "El sentimiento positivo cayó de " +
+          prevRate.toFixed(1) +
+          "% a " +
+          currRate.toFixed(1) +
+          "% en los últimos días",
         action:
           "Identificar factores que están impactando la percepción del cliente",
         timestamp: new Date().toISOString(),
       });
     }
 
-    // 4. CANAL CON PROBLEMAS DESDE channel_summary
+    // 4. Canal problemático desde channel_summary
     const channelResult = await pool.query(
       "SELECT channel, total_messages as total, negative_count, ROUND((negative_count::numeric / NULLIF(total_messages, 0)::numeric) * 100, 1) as negative_rate FROM channel_summary WHERE client_id = $1 AND (negative_count::numeric / NULLIF(total_messages, 0)::numeric) > 0.4 AND total_messages > 10 ORDER BY negative_rate DESC LIMIT 1",
       [clientId]
@@ -101,22 +112,21 @@ export async function generateAlerts(clientId) {
           channel.channel +
           " tiene " +
           channel.negative_rate +
-          "% de mensajes negativos",
-        action: "Revisar tiempo de respuesta en " + channel.channel,
+          "% de mensajes negativos (" +
+          channel.negative_count +
+          "/" +
+          channel.total +
+          ")",
+        action:
+          "Revisar tiempo de respuesta y calidad de atención en " +
+          channel.channel,
         timestamp: new Date().toISOString(),
       });
     }
 
-    // 5. OPORTUNIDADES DESDE topic_summary
+    // 5. Oportunidades desde topic_summary
     const opportunityResult = await pool.query(
-      `SELECT 
-        topic,
-        positive_count as mentions
-       FROM topic_summary
-       WHERE client_id = $1
-       AND positive_count > 5
-       ORDER BY positive_count DESC
-       LIMIT 1`,
+      "SELECT topic, positive_count as mentions FROM topic_summary WHERE client_id = $1 AND positive_count > 5 ORDER BY positive_count DESC LIMIT 1",
       [clientId]
     );
 
@@ -125,14 +135,20 @@ export async function generateAlerts(clientId) {
       alerts.push({
         type: "opportunity",
         severity: "low",
-        title: `Fortaleza detectada: ${opp.topic}`,
-        message: `Los clientes valoran positivamente "${opp.topic}" (${opp.mentions} menciones positivas)`,
-        action: `Capitalizar esta fortaleza en marketing y comunicación con clientes`,
+        title: "Fortaleza detectada: " + opp.topic,
+        message:
+          "Los clientes valoran positivamente '" +
+          opp.topic +
+          "' (" +
+          opp.mentions +
+          " menciones positivas)",
+        action:
+          "Capitalizar esta fortaleza en marketing y comunicación con clientes",
         timestamp: new Date().toISOString(),
       });
     }
 
-    // 6. VALIDACIÓN PENDIENTE (única query permitida a messages)
+    // 6. Validación pendiente (única query permitida a messages)
     const validationResult = await pool.query(
       "SELECT COUNT(*) as pending FROM messages WHERE client_id = $1 AND requires_validation = true AND validated = false",
       [clientId]
@@ -144,8 +160,12 @@ export async function generateAlerts(clientId) {
         type: "action_required",
         severity: "medium",
         title: "Mensajes pendientes de validación",
-        message: "Hay " + pending + " mensajes que requieren revisión humana",
-        action: "Revisar en Validation para mejorar precisión",
+        message:
+          "Hay " +
+          pending +
+          " mensajes que requieren revisión humana para garantizar precisión",
+        action:
+          "Revisar en la sección 'Validation' para mejorar precisión del modelo",
         timestamp: new Date().toISOString(),
       });
     }

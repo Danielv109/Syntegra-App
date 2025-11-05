@@ -53,13 +53,14 @@ async function migrate() {
       );
     `);
 
-    // Tabla de trabajos con reintentos
+    // Tabla de trabajos con soporte para API y CSV
     await client.query(`
       CREATE TABLE IF NOT EXISTS jobs (
         id VARCHAR(50) PRIMARY KEY,
         client_id VARCHAR(50) REFERENCES clients(id),
         type VARCHAR(50) NOT NULL,
         file_path VARCHAR(500),
+        payload JSONB,
         status VARCHAR(20) DEFAULT 'pending',
         total_records INTEGER DEFAULT 0,
         processed_records INTEGER DEFAULT 0,

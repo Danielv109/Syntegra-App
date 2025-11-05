@@ -151,9 +151,9 @@ async function processJob(job) {
 
   try {
     console.log(
-      `\n🚀 Procesando trabajo: ${job.id} (Intento ${job.retry_count + 1}/${
-        job.max_retries
-      })`
+      `\n🚀 Procesando trabajo: ${job.id} (Tipo: ${job.type}, Intento ${
+        job.retry_count + 1
+      }/${job.max_retries})`
     );
 
     await client.query(
@@ -161,26 +161,52 @@ async function processJob(job) {
       [job.id]
     );
 
-    // Leer CSV
-    const messages = [];
+    let messages = [];
 
-    await new Promise((resolve, reject) => {
-      fs.createReadStream(job.file_path)
-        .pipe(csv())
-        .on("data", (row) => {
-          if (row.text || row.message) {
-            messages.push({
-              id: `msg_${job.id}_${messages.length}`,
-              client_id: job.client_id,
-              text: row.text || row.message || "",
-              channel: row.channel || "csv",
-              timestamp: row.timestamp || new Date().toISOString(),
-            });
-          }
-        })
-        .on("end", resolve)
-        .on("error", reject);
-    });
+    // ============================================
+    // SOPORTE PARA CSV Y API
+    // ============================================
+
+    if (job.type === "api_ingest" || job.type === "connector") {
+      // Mensajes vienen del payload JSON
+      console.log(`📦 Procesando mensajes de API desde payload`);
+      const payload =
+        typeof job.payload === "string" ? JSON.parse(job.payload) : job.payload;
+      messages = payload.map((msg, idx) => ({
+        id: `msg_${job.id}_${idx}`,
+        client_id: job.client_id,
+        text: msg.text || "",
+        channel: msg.channel || "api",
+        timestamp: msg.timestamp || new Date().toISOString(),
+      }));
+    } else if (job.type === "upload" || job.type === "csv_upload") {
+      // Mensajes vienen de archivo CSV
+      console.log(`📄 Procesando mensajes de CSV: ${job.file_path}`);
+      await new Promise((resolve, reject) => {
+        fs.createReadStream(job.file_path)
+          .pipe(csv())
+          .on("data", (row) => {
+            if (row.text || row.message) {
+              messages.push({
+                id: `msg_${job.id}_${messages.length}`,
+                client_id: job.client_id,
+                text: row.text || row.message || "",
+                channel: row.channel || "csv",
+                timestamp: row.timestamp || new Date().toISOString(),
+              });
+            }
+          })
+          .on("end", resolve)
+          .on("error", reject);
+      });
+
+      // Limpiar archivo después de leer
+      if (fs.existsSync(job.file_path)) {
+        fs.unlinkSync(job.file_path);
+      }
+    } else {
+      throw new Error(`Tipo de trabajo no soportado: ${job.type}`);
+    }
 
     console.log(`📊 ${messages.length} mensajes extraídos`);
 
@@ -203,9 +229,7 @@ async function processJob(job) {
     let processedCount = 0;
     for (const msg of classified) {
       await client.query(
-        `INSERT INTO messages (id, client_id, text, channel, timestamp, sentiment, topic, intent, requires_validation)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-         ON CONFLICT (id) DO NOTHING`,
+        "INSERT INTO messages (id, client_id, text, channel, timestamp, sentiment, topic, intent, requires_validation) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (id) DO NOTHING",
         [
           msg.id,
           msg.client_id,
@@ -234,10 +258,7 @@ async function processJob(job) {
 
     // Actualizar cliente
     await client.query(
-      `UPDATE clients 
-       SET total_messages = (SELECT COUNT(*) FROM messages WHERE client_id = $1),
-           last_analysis = NOW()
-       WHERE id = $1`,
+      "UPDATE clients SET total_messages = (SELECT COUNT(*) FROM messages WHERE client_id = $1), last_analysis = NOW() WHERE id = $1",
       [job.client_id]
     );
 
@@ -249,10 +270,9 @@ async function processJob(job) {
       [processedCount, job.id]
     );
 
-    console.log(`✅ Trabajo ${job.id} completado: ${processedCount} mensajes`);
-
-    // Limpiar archivo
-    fs.unlinkSync(job.file_path);
+    console.log(
+      `✅ Trabajo ${job.id} completado: ${processedCount} mensajes procesados`
+    );
   } catch (error) {
     await client.query("ROLLBACK");
     console.error(`❌ Error en trabajo ${job.id}:`, error.message);
@@ -260,17 +280,11 @@ async function processJob(job) {
     const retryCount = job.retry_count + 1;
 
     if (retryCount < job.max_retries) {
-      // Programar reintento
       const backoffMs = calculateBackoff(retryCount);
       const nextRetry = new Date(Date.now() + backoffMs);
 
       await client.query(
-        `UPDATE jobs 
-         SET status = 'pending', 
-             retry_count = $1, 
-             last_error = $2,
-             next_retry_at = $3
-         WHERE id = $4`,
+        "UPDATE jobs SET status = 'pending', retry_count = $1, last_error = $2, next_retry_at = $3 WHERE id = $4",
         [retryCount, error.message, nextRetry, job.id]
       );
 
@@ -280,7 +294,6 @@ async function processJob(job) {
         }s`
       );
     } else {
-      // Falló permanentemente
       await client.query(
         "UPDATE jobs SET status = 'failed', error_message = $1, completed_at = NOW() WHERE id = $2",
         [error.message, job.id]
