@@ -66,12 +66,50 @@ async function migrate() {
       );
     `);
 
-    // Índices para mejor rendimiento
+    // Tabla de trabajos (Job Queue)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS jobs (
+        id VARCHAR(50) PRIMARY KEY,
+        client_id VARCHAR(50) REFERENCES clients(id),
+        type VARCHAR(50) NOT NULL,
+        file_path VARCHAR(500),
+        status VARCHAR(20) DEFAULT 'pending',
+        total_records INTEGER DEFAULT 0,
+        processed_records INTEGER DEFAULT 0,
+        error_message TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        started_at TIMESTAMP,
+        completed_at TIMESTAMP
+      );
+    `);
+
+    // Tabla de dataset para fine-tuning (base de datos de oro)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS finetuning_dataset (
+        id VARCHAR(50) PRIMARY KEY,
+        client_id VARCHAR(50) REFERENCES clients(id),
+        message_id VARCHAR(50) REFERENCES messages(id),
+        text TEXT NOT NULL,
+        ai_sentiment VARCHAR(20),
+        ai_topic VARCHAR(100),
+        ai_intent VARCHAR(50),
+        human_sentiment VARCHAR(20),
+        human_topic VARCHAR(100),
+        human_intent VARCHAR(50),
+        corrected_by VARCHAR(100),
+        corrected_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    // Índices para rendimiento
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_messages_client ON messages(client_id);
       CREATE INDEX IF NOT EXISTS idx_messages_sentiment ON messages(sentiment);
       CREATE INDEX IF NOT EXISTS idx_messages_validation ON messages(requires_validation, validated);
       CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+      CREATE INDEX IF NOT EXISTS idx_jobs_client ON jobs(client_id);
+      CREATE INDEX IF NOT EXISTS idx_finetuning_client ON finetuning_dataset(client_id);
     `);
 
     console.log("✅ Migrations completed successfully");

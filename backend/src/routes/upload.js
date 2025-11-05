@@ -1,91 +1,84 @@
 import { Router } from "express";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
 import pool from "../db/connection.js";
-import { classifyMessages } from "../services/ai-classifier.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const router = Router();
 
-router.post("/", async (req, res) => {
-  try {
-    const { filename, data, channel, clientId } = req.body;
+// Configurar almacenamiento con multer
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadsDir = path.join(__dirname, "../../uploads");
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+    cb(null, uploadsDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueName = `${Date.now()}_${file.originalname}`;
+    cb(null, uniqueName);
+  },
+});
 
-    if (!data || !Array.isArray(data) || !clientId) {
-      return res
-        .status(400)
-        .json({ error: "Invalid data format or missing clientId" });
+const upload = multer({
+  storage,
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB max
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === "text/csv" || file.originalname.endsWith(".csv")) {
+      cb(null, true);
+    } else {
+      cb(new Error("Solo se permiten archivos CSV"));
+    }
+  },
+});
+
+router.post("/", upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No se recibió ningún archivo" });
+    }
+
+    const { clientId, channel } = req.body;
+
+    if (!clientId) {
+      fs.unlinkSync(req.file.path); // Limpiar archivo
+      return res.status(400).json({ error: "clientId es requerido" });
     }
 
     console.log(
-      `📥 Recibidos ${data.length} mensajes para cliente ${clientId}`
+      `📥 Archivo recibido: ${req.file.originalname} (${req.file.size} bytes)`
     );
 
-    // Preparar mensajes para clasificación
-    const messagesForAI = data.map((row, i) => ({
-      id: `msg_${Date.now()}_${i}`,
-      text: row.text || row.message || "",
-      channel: channel || row.channel || "unknown",
-      timestamp: row.timestamp || new Date().toISOString(),
-      client_id: clientId,
-    }));
+    // Crear trabajo en la cola
+    const jobId = `job_${Date.now()}`;
 
-    // Clasificar con IA
-    console.log("🤖 Clasificando mensajes con IA...");
-    const classifiedMessages = await classifyMessages(messagesForAI);
+    await pool.query(
+      `INSERT INTO jobs (id, client_id, type, file_path, status, total_records)
+       VALUES ($1, $2, 'upload', $3, 'pending', 0)`,
+      [jobId, clientId, req.file.path]
+    );
 
-    // Guardar en base de datos
-    console.log("💾 Guardando en base de datos...");
-    const client = await pool.connect();
+    console.log(`✅ Trabajo creado: ${jobId} - Archivo: ${req.file.filename}`);
 
-    try {
-      await client.query("BEGIN");
-
-      for (const msg of classifiedMessages) {
-        await client.query(
-          `INSERT INTO messages (id, client_id, text, channel, timestamp, sentiment, topic, intent, requires_validation)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-           ON CONFLICT (id) DO NOTHING`,
-          [
-            msg.id,
-            msg.client_id,
-            msg.text,
-            msg.channel,
-            msg.timestamp,
-            msg.sentiment,
-            msg.topic,
-            msg.intent,
-            msg.requires_validation,
-          ]
-        );
-      }
-
-      // Actualizar contador del cliente
-      await client.query(
-        `UPDATE clients 
-         SET total_messages = (SELECT COUNT(*) FROM messages WHERE client_id = $1),
-             last_analysis = NOW()
-         WHERE id = $1`,
-        [clientId]
-      );
-
-      await client.query("COMMIT");
-
-      console.log(
-        `✅ ${classifiedMessages.length} mensajes guardados y clasificados`
-      );
-
-      res.json({
-        success: true,
-        recordCount: classifiedMessages.length,
-        message: "Mensajes procesados y clasificados con IA",
-      });
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
-    } finally {
-      client.release();
-    }
+    res.json({
+      success: true,
+      jobId,
+      filename: req.file.originalname,
+      message: "Archivo recibido. Procesamiento iniciado en segundo plano.",
+    });
   } catch (error) {
     console.error("❌ Error en upload:", error);
-    res.status(500).json({ error: "Failed to process upload" });
+    if (req.file) {
+      fs.unlinkSync(req.file.path);
+    }
+    res.status(500).json({
+      error: "Error al procesar archivo: " + error.message,
+    });
   }
 });
 
@@ -93,8 +86,36 @@ router.get("/history", async (req, res) => {
   try {
     const { clientId } = req.query;
 
-    // TODO: Implementar historial real desde base de datos
-    res.json({ uploads: [] });
+    const result = await pool.query(
+      `SELECT 
+        j.id as job_id,
+        j.file_path,
+        j.status,
+        j.total_records,
+        j.processed_records,
+        j.error_message,
+        j.created_at,
+        j.completed_at
+       FROM jobs j
+       WHERE j.client_id = $1
+       ORDER BY j.created_at DESC
+       LIMIT 20`,
+      [clientId]
+    );
+
+    const uploads = result.rows.map((row) => ({
+      jobId: row.job_id,
+      filename: path.basename(row.file_path),
+      channel: "csv",
+      recordCount: row.total_records,
+      processedCount: row.processed_records,
+      status: row.status,
+      error: row.error_message,
+      createdAt: row.created_at,
+      completedAt: row.completed_at,
+    }));
+
+    res.json({ uploads });
   } catch (error) {
     console.error("Error fetching upload history:", error);
     res.status(500).json({ error: "Failed to fetch upload history" });

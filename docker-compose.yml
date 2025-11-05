@@ -31,6 +31,23 @@ services:
         condition: service_healthy
     volumes:
       - ./backend/src:/app/src
+      - uploads_volume:/app/uploads
+      - reports_volume:/app/reports
+
+  worker:
+    build:
+      context: ./worker
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./worker/src:/app/src
+      - uploads_volume:/app/uploads
     restart: unless-stopped
 
   frontend:
@@ -45,17 +62,8 @@ services:
       - backend
     volumes:
       - ./frontend/src:/app/src
-    restart: unless-stopped
-
-  worker:
-    build:
-      context: ./worker
-      dockerfile: Dockerfile
-    environment:
-      - NODE_ENV=development
-    volumes:
-      - ./worker/src:/app/src
-    restart: unless-stopped
 
 volumes:
   postgres_data:
+  uploads_volume:
+  reports_volume:

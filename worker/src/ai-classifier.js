@@ -1,9 +1,9 @@
+// Copiar exactamente el contenido de backend/src/services/ai-classifier.js
 import axios from "axios";
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
-// PROCESAMIENTO POR LOTES - OpenAI
 export async function classifyBatchWithOpenAI(messages) {
   if (!OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY no configurada");
@@ -76,7 +76,6 @@ Valores permitidos:
   }
 }
 
-// PROCESAMIENTO POR LOTES - Ollama
 export async function classifyBatchWithOllama(messages) {
   const OLLAMA_URL =
     process.env.OLLAMA_URL || "http://host.docker.internal:11434/api/generate";
@@ -116,7 +115,7 @@ Array JSON:`,
         },
       },
       {
-        timeout: 120000, // 2 minutos
+        timeout: 120000,
       }
     );
 
@@ -146,7 +145,6 @@ Array JSON:`,
   }
 }
 
-// Función principal con fallback por mensaje individual
 export async function classifyMessagesBatch(messages, batchSize = 50) {
   const AI_PROVIDER = process.env.AI_PROVIDER || "openai";
   const results = [];
@@ -157,7 +155,6 @@ export async function classifyMessagesBatch(messages, batchSize = 50) {
     } mensajes con ${AI_PROVIDER.toUpperCase()} en lotes de ${batchSize}...`
   );
 
-  // Dividir en lotes
   for (let i = 0; i < messages.length; i += batchSize) {
     const batch = messages.slice(i, i + batchSize);
 
@@ -179,16 +176,12 @@ export async function classifyMessagesBatch(messages, batchSize = 50) {
       results.push(...classified);
       console.log(`✓ Lote ${Math.floor(i / batchSize) + 1} completado`);
 
-      // Pausa pequeña entre lotes
       await new Promise((resolve) => setTimeout(resolve, 500));
     } catch (error) {
       console.error(
-        `❌ Error en lote ${
-          Math.floor(i / batchSize) + 1
-        }, usando fallback individual`
+        `❌ Error en lote ${Math.floor(i / batchSize) + 1}, usando fallback`
       );
 
-      // Fallback: clasificar individualmente con reglas
       for (const msg of batch) {
         results.push(classifyWithFallback(msg));
       }
@@ -198,16 +191,11 @@ export async function classifyMessagesBatch(messages, batchSize = 50) {
   return results;
 }
 
-// Fallback basado en palabras clave
 function classifyWithFallback(msg) {
   const text = msg.text.toLowerCase();
 
   let sentiment = "neutral";
-  if (
-    text.match(
-      /excelente|bueno|genial|perfecto|recomiendo|gracias|feliz|increíble/
-    )
-  ) {
+  if (text.match(/excelente|bueno|genial|perfecto|recomiendo|gracias|feliz/)) {
     sentiment = "positive";
   } else if (
     text.match(/mal|problema|queja|tarde|demora|error|pésimo|nunca|horrible/)
@@ -243,5 +231,3 @@ function classifyWithFallback(msg) {
     requires_validation: true,
   };
 }
-
-export default { classifyMessagesBatch };

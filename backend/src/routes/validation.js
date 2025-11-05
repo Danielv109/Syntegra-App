@@ -42,10 +42,27 @@ router.get("/queue/:clientId", async (req, res) => {
 });
 
 router.post("/validate", async (req, res) => {
+  const client = await pool.connect();
+  
   try {
-    const { messageId, corrections } = req.body;
+    const { messageId, clientId, corrections } = req.body;
 
-    await pool.query(
+    await client.query("BEGIN");
+
+    // Obtener clasificación original de la IA
+    const originalMessage = await client.query(
+      "SELECT * FROM messages WHERE id = $1",
+      [messageId]
+    );
+
+    if (originalMessage.rows.length === 0) {
+      throw new Error("Message not found");
+    }
+
+    const original = originalMessage.rows[0];
+
+    // Actualizar mensaje con corrección humana
+    await client.query(
       `UPDATE messages 
        SET sentiment = $1, 
            topic = $2, 
@@ -55,10 +72,98 @@ router.post("/validate", async (req, res) => {
       [corrections.sentiment, corrections.topic, corrections.intent, messageId]
     );
 
+    // GUARDAR EN DATASET DE FINE-TUNING (BASE DE DATOS DE ORO)
+    const finetuningId = `ft_${Date.now()}`;
+    await client.query(
+      `INSERT INTO finetuning_dataset (
+        id, 
+        client_id, 
+        message_id, 
+        text, 
+        ai_sentiment, 
+        ai_topic, 
+        ai_intent, 
+        human_sentiment, 
+        human_topic, 
+        human_intent,
+        corrected_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
+      [
+        finetuningId,
+        clientId,
+        messageId,
+        original.text,
+        original.sentiment,
+        original.topic,
+        original.intent,
+        corrections.sentiment,
+        corrections.topic,
+        corrections.intent,
+        "human_validator" // Aquí podrías agregar el user_id real
+      ]
+    );
+
+    await client.query("COMMIT");
+
+    console.log(`✓ Corrección guardada en fine-tuning dataset: ${finetuningId}`);
+
     res.json({ success: true });
   } catch (error) {
+    await client.query("ROLLBACK");
     console.error("Error validating message:", error);
     res.status(500).json({ error: "Failed to validate message" });
+  } finally {
+    client.release();
+  }
+});
+
+// Endpoint para exportar dataset de fine-tuning
+router.get("/finetuning-dataset/:clientId", async (req, res) => {
+  try {
+    const { clientId } = req.params;
+
+    const result = await pool.query(
+      `SELECT 
+        text,
+        ai_sentiment,
+        ai_topic,
+        ai_intent,
+        human_sentiment,
+        human_topic,
+        human_intent,
+        corrected_at
+       FROM finetuning_dataset
+       WHERE client_id = $1
+       ORDER BY corrected_at DESC`,
+      [clientId]
+    );
+
+    const dataset = result.rows.map(row => ({
+      messages: [
+        {
+          role: "user",
+          content: `Clasifica este mensaje: "${row.text}"`
+        },
+        {
+          role: "assistant",
+          content: JSON.stringify({
+            sentiment: row.human_sentiment,
+            topic: row.human_topic,
+            intent: row.human_intent
+          })
+        }
+      ]
+    }));
+
+    res.json({
+      totalExamples: dataset.length,
+      dataset,
+      readyForFineTuning: dataset.length >= 100,
+      recommendedMinimum: 500
+    });
+  } catch (error) {
+    console.error("Error fetching fine-tuning dataset:", error);
+    res.status(500).json({ error: "Failed to fetch dataset" });
   }
 });
 

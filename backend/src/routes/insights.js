@@ -1,5 +1,6 @@
 import { Router } from "express";
 import pool from "../db/connection.js";
+import { generateAlerts } from "../services/alert-engine.js";
 
 const router = Router();
 
@@ -103,6 +104,9 @@ router.get("/", async (req, res) => {
       [clientId]
     );
 
+    // Generar alertas inteligentes
+    const alerts = await generateAlerts(clientId);
+
     const insights = {
       kpis: [
         {
@@ -142,7 +146,7 @@ router.get("/", async (req, res) => {
         count: parseInt(row.count),
         sentiment: row.sentiment,
       })),
-      alerts: [],
+      alerts: alerts, // Alertas generadas dinámicamente
       predictive: [],
       actions: [],
     };
