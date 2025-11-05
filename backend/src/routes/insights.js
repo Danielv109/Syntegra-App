@@ -8,16 +8,21 @@ async function generateAlerts(clientId) {
 
   try {
     console.log(
-      `🚨 Generando alertas para cliente ${clientId} - Solo tablas de resumen`
+      `🚨 Generando alertas para cliente ${clientId} - SOLO TABLAS DE RESUMEN`
     );
 
     // ============================================
     // 100% TABLAS DE RESUMEN - CERO QUERIES A messages
     // ============================================
 
-    // 1. Detectar picos desde daily_analytics
+    // 1. Detectar picos de negatividad desde daily_analytics
     const spikeResult = await pool.query(
-      "SELECT COALESCE(SUM(negative_count) FILTER (WHERE date = CURRENT_DATE), 0) as today_negatives, COALESCE(SUM(negative_count) FILTER (WHERE date = CURRENT_DATE - 1), 0) as yesterday_negatives FROM daily_analytics WHERE client_id = $1 AND date >= CURRENT_DATE - INTERVAL '1 day'",
+      `SELECT 
+        COALESCE(SUM(negative_count) FILTER (WHERE date = CURRENT_DATE), 0) as today_negatives,
+        COALESCE(SUM(negative_count) FILTER (WHERE date = CURRENT_DATE - 1), 0) as yesterday_negatives,
+        COALESCE(AVG(negative_count) FILTER (WHERE date >= CURRENT_DATE - 7 AND date < CURRENT_DATE), 0) as avg_7days
+      FROM daily_analytics 
+      WHERE client_id = $1 AND date >= CURRENT_DATE - INTERVAL '7 days'`,
       [clientId]
     );
 
@@ -25,8 +30,15 @@ async function generateAlerts(clientId) {
     const yesterdayNegs = parseInt(
       spikeResult.rows[0]?.yesterday_negatives || 0
     );
+    const avg7days = parseFloat(spikeResult.rows[0]?.avg_7days || 0);
 
-    if (yesterdayNegs > 0 && todayNegs > yesterdayNegs * 1.5 && todayNegs > 3) {
+    // Alerta de pico si hoy > 1.5x ayer y > 2x promedio semanal
+    if (
+      yesterdayNegs > 0 &&
+      todayNegs > yesterdayNegs * 1.5 &&
+      todayNegs > avg7days * 2 &&
+      todayNegs > 3
+    ) {
       const increase = Math.round(
         ((todayNegs - yesterdayNegs) / yesterdayNegs) * 100
       );
@@ -34,7 +46,9 @@ async function generateAlerts(clientId) {
         type: "spike",
         severity: "high",
         title: "Incremento anormal de quejas",
-        message: `Se detectó un aumento del ${increase}% en sentimiento negativo hoy (${todayNegs} vs ${yesterdayNegs} ayer)`,
+        message: `Pico de ${increase}% en sentimiento negativo hoy (${todayNegs} vs ${yesterdayNegs} ayer, promedio semanal: ${Math.round(
+          avg7days
+        )})`,
         action:
           "Revisar inmediatamente la causa raíz y establecer plan de acción",
         timestamp: new Date().toISOString(),
@@ -43,7 +57,17 @@ async function generateAlerts(clientId) {
 
     // 2. Temas recurrentes problemáticos desde topic_summary
     const recurringResult = await pool.query(
-      "SELECT topic, last_7_days_count as mentions, negative_count, ROUND((negative_count::numeric / NULLIF(total_count, 0)::numeric) * 100, 0) as negative_rate FROM topic_summary WHERE client_id = $1 AND negative_count > 5 AND (negative_count::numeric / NULLIF(total_count, 0)::numeric) > 0.4 ORDER BY negative_count DESC LIMIT 1",
+      `SELECT 
+        topic,
+        last_7_days_count as mentions,
+        negative_count,
+        ROUND((negative_count::numeric / NULLIF(total_count, 0)::numeric) * 100, 0) as negative_rate
+      FROM topic_summary 
+      WHERE client_id = $1 
+        AND negative_count > 5 
+        AND (negative_count::numeric / NULLIF(total_count, 0)::numeric) > 0.4
+      ORDER BY negative_count DESC 
+      LIMIT 1`,
       [clientId]
     );
 
@@ -54,21 +78,25 @@ async function generateAlerts(clientId) {
         severity: "high",
         title: `Problema recurrente: ${issue.topic}`,
         message: `El tema "${issue.topic}" tiene ${issue.negative_count} menciones negativas (${issue.negative_rate}% del total)`,
-        action: `Analizar casos específicos de "${issue.topic}" y diseñar estrategia de mejora`,
+        action: `Analizar casos de "${issue.topic}" y diseñar estrategia de mejora`,
         timestamp: new Date().toISOString(),
       });
     }
 
     // 3. Caída en sentimiento desde daily_analytics
     const trendResult = await pool.query(
-      "SELECT AVG(positive_count::numeric / NULLIF(total_messages, 0)::numeric * 100) FILTER (WHERE date >= CURRENT_DATE - 6 AND date <= CURRENT_DATE - 3) as previous_rate, AVG(positive_count::numeric / NULLIF(total_messages, 0)::numeric * 100) FILTER (WHERE date >= CURRENT_DATE - 2 AND date <= CURRENT_DATE) as current_rate FROM daily_analytics WHERE client_id = $1 AND date >= CURRENT_DATE - INTERVAL '6 days'",
+      `SELECT 
+        AVG(positive_count::numeric / NULLIF(total_messages, 0)::numeric * 100) FILTER (WHERE date >= CURRENT_DATE - 6 AND date <= CURRENT_DATE - 3) as previous_rate,
+        AVG(positive_count::numeric / NULLIF(total_messages, 0)::numeric * 100) FILTER (WHERE date >= CURRENT_DATE - 2 AND date <= CURRENT_DATE) as current_rate
+      FROM daily_analytics 
+      WHERE client_id = $1 AND date >= CURRENT_DATE - INTERVAL '6 days' AND total_messages > 0`,
       [clientId]
     );
 
     const prevRate = parseFloat(trendResult.rows[0]?.previous_rate || 0);
     const currRate = parseFloat(trendResult.rows[0]?.current_rate || 0);
 
-    if (prevRate > 0 && currRate < prevRate * 0.8) {
+    if (prevRate > 0 && currRate < prevRate * 0.8 && prevRate > 40) {
       alerts.push({
         type: "trend",
         severity: "medium",
@@ -84,7 +112,17 @@ async function generateAlerts(clientId) {
 
     // 4. Canal problemático desde channel_summary
     const channelResult = await pool.query(
-      "SELECT channel, total_messages as total, negative_count, ROUND((negative_count::numeric / NULLIF(total_messages, 0)::numeric) * 100, 1) as negative_rate FROM channel_summary WHERE client_id = $1 AND (negative_count::numeric / NULLIF(total_messages, 0)::numeric) > 0.4 AND total_messages > 10 ORDER BY negative_rate DESC LIMIT 1",
+      `SELECT 
+        channel,
+        total_messages as total,
+        negative_count,
+        ROUND((negative_count::numeric / NULLIF(total_messages, 0)::numeric) * 100, 1) as negative_rate
+      FROM channel_summary 
+      WHERE client_id = $1 
+        AND (negative_count::numeric / NULLIF(total_messages, 0)::numeric) > 0.4 
+        AND total_messages > 10
+      ORDER BY negative_rate DESC 
+      LIMIT 1`,
       [clientId]
     );
 
@@ -102,7 +140,14 @@ async function generateAlerts(clientId) {
 
     // 5. Oportunidades desde topic_summary
     const opportunityResult = await pool.query(
-      "SELECT topic, positive_count as mentions FROM topic_summary WHERE client_id = $1 AND positive_count > 5 ORDER BY positive_count DESC LIMIT 1",
+      `SELECT 
+        topic,
+        positive_count as mentions,
+        ROUND((positive_count::numeric / NULLIF(total_count, 0)::numeric) * 100, 0) as positive_rate
+      FROM topic_summary 
+      WHERE client_id = $1 AND positive_count > 5
+      ORDER BY positive_count DESC 
+      LIMIT 1`,
       [clientId]
     );
 
@@ -112,8 +157,8 @@ async function generateAlerts(clientId) {
         type: "opportunity",
         severity: "low",
         title: `Fortaleza detectada: ${opp.topic}`,
-        message: `Los clientes valoran positivamente "${opp.topic}" (${opp.mentions} menciones positivas)`,
-        action: `Capitalizar esta fortaleza en marketing y comunicación con clientes`,
+        message: `Los clientes valoran positivamente "${opp.topic}" (${opp.mentions} menciones positivas, ${opp.positive_rate}% del total)`,
+        action: `Capitalizar esta fortaleza en marketing y comunicación`,
         timestamp: new Date().toISOString(),
       });
     }
@@ -131,8 +176,21 @@ router.get("/", async (req, res) => {
     const { clientId } = req.query;
 
     if (!clientId) {
-      return res.status(400).json({ error: "clientId is required" });
+      return res.status(400).json({ error: "clientId es requerido" });
     }
+
+    // Verificar que el cliente existe
+    const clientCheck = await pool.query(
+      "SELECT id FROM clients WHERE id = $1",
+      [clientId]
+    );
+    if (clientCheck.rows.length === 0) {
+      return res.status(404).json({ error: "Cliente no encontrado" });
+    }
+
+    console.log(
+      `📊 Insights solicitado por ${req.user.username} para cliente ${clientId}`
+    );
 
     // ============================================
     // SOLO USAR TABLAS DE RESUMEN - CERO QUERIES A messages

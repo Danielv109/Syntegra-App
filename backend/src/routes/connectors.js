@@ -8,6 +8,19 @@ router.get("/:clientId", async (req, res) => {
   try {
     const { clientId } = req.params;
 
+    // Verificar que el cliente existe
+    const clientCheck = await pool.query(
+      "SELECT id FROM clients WHERE id = $1",
+      [clientId]
+    );
+    if (clientCheck.rows.length === 0) {
+      return res.status(404).json({ error: "Cliente no encontrado" });
+    }
+
+    console.log(
+      `🔌 Conectores solicitados por ${req.user.username} para cliente ${clientId}`
+    );
+
     const result = await pool.query(
       "SELECT id, client_id, type, name, enabled, status, frequency, last_sync, total_messages, created_at FROM connectors WHERE client_id = $1 ORDER BY created_at DESC",
       [clientId]
@@ -27,6 +40,19 @@ router.post("/", async (req, res) => {
     if (!clientId || !type || !name || !apiKey) {
       return res.status(400).json({ error: "Missing required fields" });
     }
+
+    // Verificar que el cliente existe
+    const clientCheck = await pool.query(
+      "SELECT id FROM clients WHERE id = $1",
+      [clientId]
+    );
+    if (clientCheck.rows.length === 0) {
+      return res.status(404).json({ error: "Cliente no encontrado" });
+    }
+
+    console.log(
+      `🔌 Conector creado por ${req.user.username} para cliente ${clientId}`
+    );
 
     const id = `conn_${Date.now()}`;
 

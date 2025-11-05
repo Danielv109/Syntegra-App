@@ -39,19 +39,27 @@ const upload = multer({
 
 router.post("/", upload.single("file"), async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: "No se recibió ningún archivo" });
-    }
-
     const { clientId, channel } = req.body;
 
     if (!clientId) {
-      fs.unlinkSync(req.file.path); // Limpiar archivo
-      return res.status(400).json({ error: "clientId es requerido" });
+      return res.status(400).json({ error: "clientId is required" });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+
+    // Verificar que el cliente existe
+    const clientCheck = await pool.query(
+      "SELECT id FROM clients WHERE id = $1",
+      [clientId]
+    );
+    if (clientCheck.rows.length === 0) {
+      return res.status(404).json({ error: "Cliente no encontrado" });
     }
 
     console.log(
-      `📥 Archivo recibido: ${req.file.originalname} (${req.file.size} bytes)`
+      `📤 Upload realizado por ${req.user.username} para cliente ${clientId}`
     );
 
     // Crear trabajo en la cola
@@ -72,19 +80,31 @@ router.post("/", upload.single("file"), async (req, res) => {
       message: "Archivo recibido. Procesamiento iniciado en segundo plano.",
     });
   } catch (error) {
-    console.error("❌ Error en upload:", error);
-    if (req.file) {
-      fs.unlinkSync(req.file.path);
-    }
-    res.status(500).json({
-      error: "Error al procesar archivo: " + error.message,
-    });
+    console.error("Error uploading file:", error);
+    res.status(500).json({ error: "Failed to upload file" });
   }
 });
 
 router.get("/history", async (req, res) => {
   try {
     const { clientId } = req.query;
+
+    if (!clientId) {
+      return res.status(400).json({ error: "clientId is required" });
+    }
+
+    // Verificar que el cliente existe
+    const clientCheck = await pool.query(
+      "SELECT id FROM clients WHERE id = $1",
+      [clientId]
+    );
+    if (clientCheck.rows.length === 0) {
+      return res.status(404).json({ error: "Cliente no encontrado" });
+    }
+
+    console.log(
+      `📜 Historial de uploads solicitado por ${req.user.username} para cliente ${clientId}`
+    );
 
     const result = await pool.query(
       `SELECT 

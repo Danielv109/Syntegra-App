@@ -11,6 +11,19 @@ router.get("/", async (req, res) => {
       return res.status(400).json({ error: "clientId is required" });
     }
 
+    // Verificar que el cliente existe
+    const clientCheck = await pool.query(
+      "SELECT id FROM clients WHERE id = $1",
+      [clientId]
+    );
+    if (clientCheck.rows.length === 0) {
+      return res.status(404).json({ error: "Cliente no encontrado" });
+    }
+
+    console.log(
+      `⚙️ Settings solicitados por ${req.user.username} para cliente ${clientId}`
+    );
+
     let result = await pool.query(
       "SELECT * FROM client_settings WHERE client_id = $1",
       [clientId]
@@ -51,12 +64,24 @@ router.get("/", async (req, res) => {
 
 router.put("/", async (req, res) => {
   try {
-    const { clientId, notifications, processing, integrations, theme } =
-      req.body;
+    const { clientId, notifications, processing, integrations } = req.body;
 
     if (!clientId) {
       return res.status(400).json({ error: "clientId is required" });
     }
+
+    // Verificar que el cliente existe
+    const clientCheck = await pool.query(
+      "SELECT id FROM clients WHERE id = $1",
+      [clientId]
+    );
+    if (clientCheck.rows.length === 0) {
+      return res.status(404).json({ error: "Cliente no encontrado" });
+    }
+
+    console.log(
+      `⚙️ Settings actualizado por ${req.user.username} para cliente ${clientId}`
+    );
 
     await pool.query(
       `INSERT INTO client_settings (client_id, notifications, processing, integrations, theme, updated_at)

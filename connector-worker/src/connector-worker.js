@@ -1,14 +1,9 @@
 import dotenv from "dotenv";
 import pg from "pg";
 import axios from "axios";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
 
 dotenv.config();
 const { Pool } = pg;
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const pool = new Pool({
   host: process.env.POSTGRES_HOST || "db",
@@ -18,8 +13,9 @@ const pool = new Pool({
   database: process.env.POSTGRES_DB || "syntegra",
 });
 
-console.log("🔌 Connector Worker iniciado - Extractor de APIs automático");
-console.log("📡 Monitoreando conectores habilitados cada 5 minutos...");
+console.log("🔌 Connector Worker iniciado - Extractor automático de APIs");
+console.log("📡 Monitoreando conectores cada 5 minutos...");
+console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 
 // ============================================
 // EXTRACTORES POR PLATAFORMA
@@ -27,18 +23,16 @@ console.log("📡 Monitoreando conectores habilitados cada 5 minutos...");
 
 async function extractWhatsAppMessages(connector) {
   try {
-    console.log(`📱 Extrayendo de WhatsApp Business API: ${connector.name}`);
+    console.log(`📱 WhatsApp Business API: ${connector.name}`);
 
     const lastSync = connector.last_sync
       ? new Date(connector.last_sync).getTime() / 1000
-      : Math.floor(Date.now() / 1000) - 86400; // Últimas 24h si es primera vez
+      : Math.floor(Date.now() / 1000) - 86400;
 
     // Intentar API real de WhatsApp Business
     try {
       const response = await axios.get(
-        `https://graph.facebook.com/v18.0/${
-          process.env.WHATSAPP_PHONE_ID || "me"
-        }/messages`,
+        `https://graph.facebook.com/v18.0/me/messages`,
         {
           headers: { Authorization: `Bearer ${connector.api_key}` },
           params: { since: lastSync, limit: 100 },
@@ -54,8 +48,8 @@ async function extractWhatsAppMessages(connector) {
       }));
     } catch (apiError) {
       // Si la API falla (credenciales incorrectas, API no disponible), usar datos simulados
-      console.warn(`⚠️ WhatsApp API no disponible: ${apiError.message}`);
-      console.log("📊 Usando datos simulados para demostración");
+      console.warn(`   ⚠️ API no disponible: ${apiError.message}`);
+      console.log(`   📊 Usando datos de demostración`);
 
       return [
         {
@@ -64,7 +58,7 @@ async function extractWhatsAppMessages(connector) {
           channel: "whatsapp",
         },
         {
-          text: "El producto llegó en mal estado, quiero un reembolso",
+          text: "El producto llegó en mal estado, quiero reembolso",
           timestamp: new Date().toISOString(),
           channel: "whatsapp",
         },
@@ -76,14 +70,14 @@ async function extractWhatsAppMessages(connector) {
       ];
     }
   } catch (error) {
-    console.error(`❌ Error extrayendo de WhatsApp:`, error.message);
+    console.error(`   ❌ Error: ${error.message}`);
     return [];
   }
 }
 
 async function extractGmailMessages(connector) {
   try {
-    console.log(`📧 Extrayendo de Gmail API: ${connector.name}`);
+    console.log(`📧 Gmail API: ${connector.name}`);
 
     const lastSync = connector.last_sync
       ? new Date(connector.last_sync).toISOString().split("T")[0]
@@ -119,8 +113,8 @@ async function extractGmailMessages(connector) {
       }
       return messages;
     } catch (apiError) {
-      console.warn(`⚠️ Gmail API no disponible: ${apiError.message}`);
-      console.log("📊 Usando datos simulados para demostración");
+      console.warn(`   ⚠️ API no disponible: ${apiError.message}`);
+      console.log(`   📊 Usando datos de demostración`);
 
       return [
         {
@@ -129,21 +123,21 @@ async function extractGmailMessages(connector) {
           channel: "email",
         },
         {
-          text: "Agradecimiento por la excelente atención recibida",
+          text: "Agradecimiento por excelente atención",
           timestamp: new Date().toISOString(),
           channel: "email",
         },
       ];
     }
   } catch (error) {
-    console.error(`❌ Error extrayendo de Gmail:`, error.message);
+    console.error(`   ❌ Error: ${error.message}`);
     return [];
   }
 }
 
 async function extractInstagramMessages(connector) {
   try {
-    console.log(`📸 Extrayendo de Instagram Graph API: ${connector.name}`);
+    console.log(`📸 Instagram Graph API: ${connector.name}`);
 
     const lastSync = connector.last_sync
       ? new Date(connector.last_sync).getTime() / 1000
@@ -166,12 +160,12 @@ async function extractInstagramMessages(connector) {
         external_id: conv.id,
       }));
     } catch (apiError) {
-      console.warn(`⚠️ Instagram API no disponible: ${apiError.message}`);
-      console.log("📊 Usando datos simulados para demostración");
+      console.warn(`   ⚠️ API no disponible: ${apiError.message}`);
+      console.log(`   📊 Usando datos de demostración`);
 
       return [
         {
-          text: "Me encanta su contenido! Cómo puedo comprar?",
+          text: "Me encanta su contenido! Cómo comprar?",
           timestamp: new Date().toISOString(),
           channel: "instagram",
         },
@@ -183,14 +177,14 @@ async function extractInstagramMessages(connector) {
       ];
     }
   } catch (error) {
-    console.error(`❌ Error extrayendo de Instagram:`, error.message);
+    console.error(`   ❌ Error: ${error.message}`);
     return [];
   }
 }
 
 async function extractFacebookMessages(connector) {
   try {
-    console.log(`📘 Extrayendo de Facebook Graph API: ${connector.name}`);
+    console.log(`📘 Facebook Messenger API: ${connector.name}`);
 
     const lastSync = connector.last_sync
       ? new Date(connector.last_sync).getTime() / 1000
@@ -213,8 +207,8 @@ async function extractFacebookMessages(connector) {
         external_id: conv.id,
       }));
     } catch (apiError) {
-      console.warn(`⚠️ Facebook API no disponible: ${apiError.message}`);
-      console.log("📊 Usando datos simulados para demostración");
+      console.warn(`   ⚠️ API no disponible: ${apiError.message}`);
+      console.log(`   📊 Usando datos de demostración`);
 
       return [
         {
@@ -222,15 +216,10 @@ async function extractFacebookMessages(connector) {
           timestamp: new Date().toISOString(),
           channel: "facebook",
         },
-        {
-          text: "Felicitaciones por el nuevo producto!",
-          timestamp: new Date().toISOString(),
-          channel: "facebook",
-        },
       ];
     }
   } catch (error) {
-    console.error(`❌ Error extrayendo de Facebook:`, error.message);
+    console.error(`   ❌ Error: ${error.message}`);
     return [];
   }
 }
@@ -243,12 +232,14 @@ async function processConnector(connector) {
   const client = await pool.connect();
 
   try {
-    console.log(
-      `\n🚀 Procesando conector: ${connector.name} (${connector.type})`
-    );
+    console.log(`\n🚀 Procesando: ${connector.name} (${connector.type})`);
     console.log(`   Cliente: ${connector.client_id}`);
     console.log(
-      `   Última sincronización: ${connector.last_sync || "Primera vez"}`
+      `   Última sync: ${
+        connector.last_sync
+          ? new Date(connector.last_sync).toLocaleString()
+          : "Primera vez"
+      }`
     );
 
     let messages = [];
@@ -268,12 +259,12 @@ async function processConnector(connector) {
         messages = await extractFacebookMessages(connector);
         break;
       default:
-        console.warn(`⚠️ Tipo de conector no soportado: ${connector.type}`);
+        console.warn(`   ⚠️ Tipo no soportado: ${connector.type}`);
         return;
     }
 
     if (messages.length === 0) {
-      console.log(`✓ No hay mensajes nuevos en ${connector.name}`);
+      console.log(`   ✓ Sin mensajes nuevos`);
       await client.query(
         "UPDATE connectors SET last_sync = NOW() WHERE id = $1",
         [connector.id]
@@ -281,11 +272,9 @@ async function processConnector(connector) {
       return;
     }
 
-    console.log(
-      `📊 ${messages.length} mensajes extraídos de ${connector.name}`
-    );
+    console.log(`   📊 ${messages.length} mensajes extraídos`);
 
-    // Crear job en la tabla jobs para que el worker principal los clasifique
+    // Crear job para el worker principal
     const jobId = `job_api_${Date.now()}_${connector.id.slice(-6)}`;
 
     await client.query(
@@ -300,25 +289,21 @@ async function processConnector(connector) {
       ]
     );
 
-    // Actualizar conector
     await client.query(
       "UPDATE connectors SET last_sync = NOW(), total_messages = total_messages + $1, status = $2 WHERE id = $3",
       [messages.length, "active", connector.id]
     );
 
-    console.log(`✅ Job ${jobId} creado con ${messages.length} mensajes`);
+    console.log(`   ✅ Job ${jobId} creado`);
     console.log(
-      `   Será procesado por el worker principal para clasificación con IA`
+      `   → Será procesado por worker principal para clasificación IA`
     );
   } catch (error) {
-    console.error(
-      `❌ Error procesando conector ${connector.id}:`,
-      error.message
-    );
-    await client.query(
-      "UPDATE connectors SET status = $1, last_sync = NOW() WHERE id = $2",
-      ["error", connector.id]
-    );
+    console.error(`   ❌ Error: ${error.message}`);
+    await client.query("UPDATE connectors SET status = $1 WHERE id = $2", [
+      "error",
+      connector.id,
+    ]);
   } finally {
     client.release();
   }
@@ -346,7 +331,9 @@ async function connectorLoop() {
 
       if (result.rows.length > 0) {
         console.log(
-          `\n📡 ${result.rows.length} conector(es) listo(s) para sincronización`
+          `\n📡 ${
+            result.rows.length
+          } conector(es) listo(s) [${new Date().toLocaleTimeString()}]`
         );
         console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
 
@@ -356,41 +343,42 @@ async function connectorLoop() {
           await new Promise((resolve) => setTimeout(resolve, 2000));
         }
 
-        console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+        console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
       } else {
-        console.log(
-          `💤 No hay conectores que sincronizar (${new Date().toLocaleTimeString()})`
-        );
+        const time = new Date().toLocaleTimeString();
+        process.stdout.write(`\r💤 Esperando conectores... [${time}]`);
       }
 
       // Esperar 5 minutos antes del siguiente ciclo
-      await new Promise((resolve) => setTimeout(resolve, 300000));
+      await new Promise((resolve) => setTimeout(resolve, 300000)); // 5 minutos
     } catch (error) {
-      console.error("❌ Error en connector loop:", error);
-      // Esperar 1 minuto antes de reintentar si hay error
-      await new Promise((resolve) => setTimeout(resolve, 60000));
+      console.error("\n❌ Error en loop:", error);
+      await new Promise((resolve) => setTimeout(resolve, 60000)); // 1 minuto
     }
   }
 }
 
 // ============================================
-// MANEJO DE SEÑALES DE CIERRE
+// SHUTDOWN GRACEFUL
 // ============================================
 
 process.on("SIGTERM", async () => {
-  console.log("\n👋 Connector Worker cerrando gracefully...");
+  console.log("\n\n👋 Cerrando connector worker...");
   await pool.end();
   process.exit(0);
 });
 
 process.on("SIGINT", async () => {
-  console.log("\n👋 Connector Worker cerrando gracefully...");
+  console.log("\n\n👋 Cerrando connector worker...");
   await pool.end();
   process.exit(0);
 });
 
 // ============================================
-// INICIAR WORKER
+// START
 // ============================================
 
-connectorLoop().catch(console.error);
+connectorLoop().catch((error) => {
+  console.error("💥 Error fatal:", error);
+  process.exit(1);
+});

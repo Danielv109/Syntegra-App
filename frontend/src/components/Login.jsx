@@ -15,16 +15,50 @@ export default function Login({ onLoginSuccess }) {
     setError("");
 
     try {
+      console.log("🔐 Intentando login con:", username);
+
       const res = await axios.post(`${apiUrl}/api/auth/login`, {
         username,
         password,
       });
 
+      console.log("✅ Respuesta del servidor:", res.data);
+
+      // IMPORTANTE: Guardar PRIMERO en localStorage
       localStorage.setItem("token", res.data.token);
       localStorage.setItem("user", JSON.stringify(res.data.user));
 
+      console.log(
+        "💾 Token guardado en localStorage:",
+        res.data.token.substring(0, 30) + "..."
+      );
+      console.log(
+        "💾 Usuario guardado en localStorage:",
+        JSON.stringify(res.data.user)
+      );
+
+      // Configurar header de axios DESPUÉS de guardar
+      axios.defaults.headers.common[
+        "Authorization"
+      ] = `Bearer ${res.data.token}`;
+      console.log("🔑 Header Authorization configurado en axios");
+
+      // Verificar que se guardó correctamente
+      const savedToken = localStorage.getItem("token");
+      const savedUser = localStorage.getItem("user");
+      console.log(
+        "✅ Verificación - Token en localStorage:",
+        savedToken ? "SÍ EXISTE" : "NO EXISTE"
+      );
+      console.log(
+        "✅ Verificación - User en localStorage:",
+        savedUser ? "SÍ EXISTE" : "NO EXISTE"
+      );
+
+      // Solo DESPUÉS llamar al callback
       onLoginSuccess(res.data.user);
     } catch (error) {
+      console.error("❌ Error en login:", error);
       setError(error.response?.data?.error || "Error al iniciar sesión");
     } finally {
       setLoading(false);

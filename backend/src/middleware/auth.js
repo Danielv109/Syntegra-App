@@ -1,9 +1,21 @@
 import jwt from "jsonwebtoken";
 
-const JWT_SECRET =
-  process.env.JWT_SECRET || "syntegra-secret-key-change-in-production";
+// IMPORTANTE: Leer JWT_SECRET del .env
+const JWT_SECRET = process.env.JWT_SECRET;
 
-export function authenticate(req, res, next) {
+if (!JWT_SECRET) {
+  console.error(
+    "❌ FATAL: JWT_SECRET no está definido en .env o docker-compose.yml"
+  );
+  process.exit(1);
+}
+
+console.log(
+  "🔑 JWT_SECRET configurado correctamente:",
+  JWT_SECRET.substring(0, 20) + "..."
+);
+
+export async function authenticate(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
 
@@ -14,8 +26,9 @@ export function authenticate(req, res, next) {
     }
 
     const token = authHeader.replace("Bearer ", "");
-
     const decoded = jwt.verify(token, JWT_SECRET);
+
+    // Añadir usuario al request
     req.user = decoded;
 
     console.log(
@@ -28,6 +41,39 @@ export function authenticate(req, res, next) {
     return res.status(401).json({
       error: "Token inválido o expirado. Por favor inicia sesión nuevamente.",
     });
+  }
+}
+
+export async function authorizeClient(req, res, next) {
+  try {
+    const clientId =
+      req.query.clientId || req.params.clientId || req.body.clientId;
+
+    if (!clientId) {
+      return res.status(400).json({ error: "clientId es requerido" });
+    }
+
+    // Admin tiene acceso a todo
+    if (req.user.role === "admin") {
+      console.log(
+        `✅ Admin ${req.user.username} autorizado para cliente ${clientId}`
+      );
+      return next();
+    }
+
+    // Verificar que el usuario tenga acceso al cliente
+    // Por ahora, si no hay tabla team_memberships, permitir acceso
+    // TODO: Implementar verificación de permisos cuando exista team_memberships
+
+    console.log(
+      `✅ Usuario ${req.user.username} autorizado para cliente ${clientId}`
+    );
+    next();
+  } catch (error) {
+    console.error("❌ Error en autorización:", error);
+    return res
+      .status(403)
+      .json({ error: "No tienes permiso para acceder a este cliente" });
   }
 }
 

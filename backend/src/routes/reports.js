@@ -12,8 +12,24 @@ const router = Router();
 router.get("/", async (req, res) => {
   try {
     const { clientId } = req.query;
-    if (!clientId)
+
+    if (!clientId) {
       return res.status(400).json({ error: "clientId is required" });
+    }
+
+    // Verificar que el cliente existe
+    const clientCheck = await pool.query(
+      "SELECT id FROM clients WHERE id = $1",
+      [clientId]
+    );
+    if (clientCheck.rows.length === 0) {
+      return res.status(404).json({ error: "Cliente no encontrado" });
+    }
+
+    console.log(
+      `📄 Reportes solicitados por ${req.user.username} para cliente ${clientId}`
+    );
+
     const result = await pool.query(
       "SELECT * FROM reports WHERE client_id = $1 ORDER BY created_at DESC LIMIT 20",
       [clientId]
@@ -28,19 +44,23 @@ router.get("/", async (req, res) => {
 router.post("/generate", async (req, res) => {
   try {
     const { clientId, title, type } = req.body;
-    if (!clientId)
-      return res.status(400).json({ error: "clientId is required" });
 
-    const clientResult = await pool.query(
+    if (!clientId) {
+      return res.status(400).json({ error: "clientId is required" });
+    }
+
+    // Verificar que el cliente existe
+    const clientCheck = await pool.query(
       "SELECT * FROM clients WHERE id = $1",
       [clientId]
     );
-    if (clientResult.rows.length === 0)
+    if (clientCheck.rows.length === 0) {
       return res.status(404).json({ error: "Client not found" });
-    const client = clientResult.rows[0];
+    }
+    const client = clientCheck.rows[0];
 
     console.log(
-      `📄 Generando reporte para ${client.name} - Solo tablas de resumen`
+      `📄 Generando reporte para ${client.name} por ${req.user.username} - SOLO TABLAS DE RESUMEN`
     );
 
     // ============================================
@@ -56,7 +76,7 @@ router.post("/generate", async (req, res) => {
 
     // 2. Quejas críticas desde topic_summary (aproximación sin messages)
     const criticalComplaintsResult = await pool.query(
-      "SELECT COALESCE(SUM(negative_count), 0) as count FROM topic_summary WHERE client_id = $1 AND topic IN ('queja', 'reclamo', 'problema')",
+      "SELECT COALESCE(SUM(negative_count), 0) as count FROM topic_summary WHERE client_id = $1 AND (topic ILIKE '%queja%' OR topic ILIKE '%reclamo%' OR topic ILIKE '%problema%')",
       [clientId]
     );
 
@@ -68,25 +88,57 @@ router.post("/generate", async (req, res) => {
 
     // 4. Canales activos desde channel_summary
     const activeChannelsResult = await pool.query(
-      "SELECT COUNT(*) as count FROM channel_summary WHERE client_id = $1",
+      "SELECT COUNT(*) as count FROM channel_summary WHERE client_id = $1 AND total_messages > 0",
       [clientId]
     );
 
     // 5. Sentimiento por canal desde channel_summary
     const sentimentByChannelResult = await pool.query(
-      "SELECT channel, positive_count as positive, neutral_count as neutral, negative_count as negative FROM channel_summary WHERE client_id = $1",
+      "SELECT channel, positive_count as positive, neutral_count as neutral, negative_count as negative FROM channel_summary WHERE client_id = $1 ORDER BY total_messages DESC",
       [clientId]
     );
 
     // 6. Topics desde topic_summary
     const topicsResult = await pool.query(
-      "SELECT topic, total_count as count, CASE WHEN positive_count > negative_count THEN 'positive' WHEN negative_count > positive_count THEN 'negative' ELSE 'neutral' END as sentiment FROM topic_summary WHERE client_id = $1 ORDER BY total_count DESC LIMIT 5",
+      `SELECT 
+        topic,
+        total_count as count,
+        CASE 
+          WHEN positive_count > negative_count THEN 'positive'
+          WHEN negative_count > positive_count THEN 'negative'
+          ELSE 'neutral'
+        END as sentiment
+      FROM topic_summary 
+      WHERE client_id = $1
+      ORDER BY total_count DESC 
+      LIMIT 5`,
       [clientId]
     );
 
     // 7. Alertas desde topic_summary
     const alertsResult = await pool.query(
-      "SELECT topic, negative_count, ROUND((negative_count::numeric / NULLIF(total_count, 0)::numeric) * 100, 0) as negative_rate FROM topic_summary WHERE client_id = $1 AND negative_count > 0 ORDER BY negative_count DESC LIMIT 3",
+      `SELECT 
+        topic,
+        negative_count,
+        ROUND((negative_count::numeric / NULLIF(total_count, 0)::numeric) * 100, 0) as negative_rate
+      FROM topic_summary 
+      WHERE client_id = $1 AND negative_count > 0
+      ORDER BY negative_count DESC 
+      LIMIT 3`,
+      [clientId]
+    );
+
+    // 8. Evolución diaria últimos 7 días desde daily_analytics
+    const dailyEvolutionResult = await pool.query(
+      `SELECT 
+        TO_CHAR(date, 'DD/MM') as date,
+        SUM(total_messages) as total,
+        SUM(positive_count) as positive,
+        SUM(negative_count) as negative
+      FROM daily_analytics 
+      WHERE client_id = $1 AND date >= CURRENT_DATE - INTERVAL '7 days'
+      GROUP BY date 
+      ORDER BY date ASC`,
       [clientId]
     );
 
@@ -135,9 +187,17 @@ router.post("/generate", async (req, res) => {
         message: `Tema problemático: "${row.topic}" con ${row.negative_count} menciones negativas (${row.negative_rate}% del total)`,
         severity: row.negative_rate > 50 ? "high" : "medium",
       })),
+      dailyEvolution: dailyEvolutionResult.rows.map((r) => ({
+        date: r.date,
+        total: parseInt(r.total || 0),
+        positive: parseInt(r.positive || 0),
+        negative: parseInt(r.negative || 0),
+      })),
     };
 
-    console.log(`📊 Datos del reporte calculados desde resúmenes`);
+    console.log(
+      `📊 Datos del reporte calculados desde resúmenes - ${totalMessages} mensajes`
+    );
 
     const { filename, filepath } = await generateReport(reportData, client);
     const reportId = "rpt_" + Date.now();

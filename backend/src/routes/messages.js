@@ -7,6 +7,19 @@ router.get("/:clientId", async (req, res) => {
   try {
     const { clientId } = req.params;
 
+    // Verificar que el cliente existe
+    const clientCheck = await pool.query(
+      "SELECT id FROM clients WHERE id = $1",
+      [clientId]
+    );
+    if (clientCheck.rows.length === 0) {
+      return res.status(404).json({ error: "Cliente no encontrado" });
+    }
+
+    console.log(
+      `📬 Mensajes solicitados por ${req.user.username} para cliente ${clientId}`
+    );
+
     const result = await pool.query(
       "SELECT * FROM messages WHERE client_id = $1 ORDER BY timestamp DESC LIMIT 200",
       [clientId]

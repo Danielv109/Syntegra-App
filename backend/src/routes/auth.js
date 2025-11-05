@@ -4,12 +4,27 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
 const router = Router();
-const JWT_SECRET =
-  process.env.JWT_SECRET || "syntegra-secret-key-change-in-production";
+
+// IMPORTANTE: Usar el mismo JWT_SECRET que el middleware
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  console.error(
+    "❌ FATAL: JWT_SECRET no está definido en .env o docker-compose.yml"
+  );
+  process.exit(1);
+}
+
+console.log(
+  "🔑 JWT_SECRET configurado correctamente en auth.js:",
+  JWT_SECRET.substring(0, 20) + "..."
+);
 
 router.post("/login", async (req, res) => {
   try {
     const { username, password } = req.body;
+
+    console.log("🔐 Intento de login:", username);
 
     if (!username || !password) {
       return res
@@ -22,6 +37,7 @@ router.post("/login", async (req, res) => {
     ]);
 
     if (result.rows.length === 0) {
+      console.log("❌ Usuario no encontrado:", username);
       return res.status(401).json({ error: "Credenciales inválidas" });
     }
 
@@ -29,6 +45,7 @@ router.post("/login", async (req, res) => {
     const validPassword = await bcrypt.compare(password, user.password_hash);
 
     if (!validPassword) {
+      console.log("❌ Contraseña incorrecta para:", username);
       return res.status(401).json({ error: "Credenciales inválidas" });
     }
 
@@ -43,6 +60,10 @@ router.post("/login", async (req, res) => {
     ]);
 
     console.log("✅ Login exitoso:", user.username);
+    console.log(
+      "🔑 Token generado con secret:",
+      JWT_SECRET.substring(0, 20) + "..."
+    );
 
     res.json({
       token,
@@ -54,7 +75,7 @@ router.post("/login", async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error en login:", error);
+    console.error("❌ Error en login:", error);
     res.status(500).json({ error: "Error al iniciar sesión" });
   }
 });

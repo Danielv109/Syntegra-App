@@ -152,9 +152,9 @@ async function processJob(job) {
 
   try {
     console.log(
-      `\n🚀 Procesando trabajo: ${job.id} (Tipo: ${job.type}, Intento ${
+      `\n🚀 Job: ${job.id} | Tipo: ${job.type} | Intento: ${
         job.retry_count + 1
-      }/${job.max_retries})`
+      }/${job.max_retries}`
     );
 
     await client.query("BEGIN");
@@ -165,13 +165,9 @@ async function processJob(job) {
 
     let messages = [];
 
-    // ============================================
-    // SOPORTE PARA API Y CSV
-    // ============================================
-
     if (job.type === "api_ingest" || job.type === "connector") {
-      // Mensajes vienen del payload JSON (desde connector-worker)
-      console.log(`📦 Procesando mensajes de API desde payload (${job.id})`);
+      // Mensajes desde connector-worker (payload JSON)
+      console.log(`📦 Cargando desde API payload`);
       const payload =
         typeof job.payload === "string" ? JSON.parse(job.payload) : job.payload;
 
@@ -183,10 +179,10 @@ async function processJob(job) {
         timestamp: msg.timestamp || new Date().toISOString(),
       }));
 
-      console.log(`   ✅ ${messages.length} mensajes cargados desde API`);
+      console.log(`   ✅ ${messages.length} mensajes de API`);
     } else if (job.type === "upload" || job.type === "csv_upload") {
-      // Mensajes vienen de archivo CSV
-      console.log(`📄 Procesando mensajes de CSV: ${job.file_path}`);
+      // Mensajes desde CSV
+      console.log(`📄 Cargando desde CSV: ${job.file_path}`);
 
       await new Promise((resolve, reject) => {
         fs.createReadStream(job.file_path)
@@ -206,9 +202,9 @@ async function processJob(job) {
           .on("error", reject);
       });
 
-      console.log(`   ✅ ${messages.length} mensajes cargados desde CSV`);
+      console.log(`   ✅ ${messages.length} mensajes de CSV`);
     } else {
-      throw new Error(`Tipo de trabajo no soportado: ${job.type}`);
+      throw new Error(`Tipo no soportado: ${job.type}`);
     }
 
     await client.query("UPDATE jobs SET total_records = $1 WHERE id = $2", [
@@ -291,7 +287,7 @@ async function processJob(job) {
     }
   } catch (error) {
     await client.query("ROLLBACK");
-    console.error(`❌ Error en trabajo ${job.id}:`, error.message);
+    console.error(`❌ Error: ${error.message}`);
 
     const retryCount = job.retry_count + 1;
 
