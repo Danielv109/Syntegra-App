@@ -16,6 +16,7 @@ router.get("/queue/:clientId", async (req, res) => {
       return res.status(404).json({ error: "Cliente no encontrado" });
     }
 
+    // La autorización ya fue verificada por el middleware authorizeClient
     console.log(
       `✅ Cola de validación solicitada por ${req.user.username} para cliente ${clientId}`
     );
@@ -57,6 +58,7 @@ router.post("/validate", async (req, res) => {
       return res.status(404).json({ error: "Cliente no encontrado" });
     }
 
+    // La autorización ya fue verificada por el middleware authorizeClient
     console.log(
       `🔧 Validación realizada por ${req.user.username} para mensaje ${messageId}`
     );

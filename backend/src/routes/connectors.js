@@ -17,6 +17,7 @@ router.get("/:clientId", async (req, res) => {
       return res.status(404).json({ error: "Cliente no encontrado" });
     }
 
+    // La autorización ya fue verificada por el middleware authorizeClient
     console.log(
       `🔌 Conectores solicitados por ${req.user.username} para cliente ${clientId}`
     );
@@ -38,7 +39,7 @@ router.post("/", async (req, res) => {
     const { clientId, type, name, apiKey, frequency } = req.body;
 
     if (!clientId || !type || !name || !apiKey) {
-      return res.status(400).json({ error: "Missing required fields" });
+      return res.status(400).json({ error: "Faltan campos requeridos" });
     }
 
     // Verificar que el cliente existe
@@ -50,6 +51,7 @@ router.post("/", async (req, res) => {
       return res.status(404).json({ error: "Cliente no encontrado" });
     }
 
+    // La autorización ya fue verificada por el middleware authorizeClient
     console.log(
       `🔌 Conector creado por ${req.user.username} para cliente ${clientId}`
     );

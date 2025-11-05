@@ -21,7 +21,7 @@ router.get("/", async (req, res) => {
     }
 
     console.log(
-      `📊 Analytics solicitado por ${req.user.username} para cliente ${clientId} - SOLO TABLAS DE RESUMEN`
+      `📊 Analytics por ${req.user.username} para ${clientId} - SOLO RESÚMENES`
     );
 
     // ============================================
@@ -49,70 +49,48 @@ router.get("/", async (req, res) => {
       });
     }
 
-    // 2. Promedio de sentimiento desde channel_summary
+    // 2. Promedio de sentimiento
     const avgSentimentResult = await pool.query(
       "SELECT ROUND((SUM(positive_count)::numeric / NULLIF(SUM(total_messages), 0)::numeric) * 100, 0) as avg FROM channel_summary WHERE client_id = $1",
       [clientId]
     );
 
-    // 3. Canal principal desde channel_summary
+    // 3. Canal principal
     const topChannelResult = await pool.query(
-      "SELECT channel, total_messages FROM channel_summary WHERE client_id = $1 ORDER BY total_messages DESC LIMIT 1",
+      "SELECT channel FROM channel_summary WHERE client_id = $1 ORDER BY total_messages DESC LIMIT 1",
       [clientId]
     );
 
-    // 4. Tendencia diaria últimos 7 días desde daily_analytics
+    // 4. Tendencia diaria (últimos 7 días)
     const dailyTrendResult = await pool.query(
-      `SELECT 
-        TO_CHAR(date, 'DD/MM') as date,
-        SUM(positive_count) as positive,
-        SUM(neutral_count) as neutral,
-        SUM(negative_count) as negative
-      FROM daily_analytics 
-      WHERE client_id = $1 AND date >= CURRENT_DATE - INTERVAL '7 days'
-      GROUP BY date 
-      ORDER BY date ASC`,
+      `SELECT TO_CHAR(date, 'DD/MM') as date, SUM(positive_count) as positive, SUM(neutral_count) as neutral, SUM(negative_count) as negative 
+       FROM daily_analytics WHERE client_id = $1 AND date >= CURRENT_DATE - INTERVAL '7 days' 
+       GROUP BY date ORDER BY date ASC`,
       [clientId]
     );
 
-    // 5. Tendencia semanal últimas 4 semanas desde daily_analytics
+    // 5. Tendencia semanal (últimas 4 semanas)
     const weeklyTrendResult = await pool.query(
-      `SELECT 
-        'S' || TO_CHAR(date, 'WW') as week,
-        SUM(positive_count) as positive,
-        SUM(neutral_count) as neutral,
-        SUM(negative_count) as negative
-      FROM daily_analytics 
-      WHERE client_id = $1 AND date >= CURRENT_DATE - INTERVAL '28 days'
-      GROUP BY TO_CHAR(date, 'WW'), DATE_TRUNC('week', date)
-      ORDER BY DATE_TRUNC('week', date) ASC`,
+      `SELECT 'S' || TO_CHAR(date, 'WW') as week, SUM(positive_count) as positive, SUM(neutral_count) as neutral, SUM(negative_count) as negative 
+       FROM daily_analytics WHERE client_id = $1 AND date >= CURRENT_DATE - INTERVAL '28 days' 
+       GROUP BY TO_CHAR(date, 'WW'), DATE_TRUNC('week', date) ORDER BY DATE_TRUNC('week', date) ASC`,
       [clientId]
     );
 
-    // 6. Comparativa por canal desde channel_summary
+    // 6. Comparativa por canal
     const channelComparisonResult = await pool.query(
-      `SELECT 
-        channel,
-        total_messages as messages,
-        ROUND((positive_count::numeric / NULLIF(total_messages, 0)::numeric) * 100, 0) as sentiment,
-        COALESCE(avg_response_time_hours, 0) as response_hours
-      FROM channel_summary 
-      WHERE client_id = $1
-      ORDER BY total_messages DESC`,
+      `SELECT channel, total_messages as messages, 
+       ROUND((positive_count::numeric / NULLIF(total_messages, 0)::numeric) * 100, 0) as sentiment, 
+       COALESCE(avg_response_time_hours, 0) as response_hours 
+       FROM channel_summary WHERE client_id = $1 ORDER BY total_messages DESC`,
       [clientId]
     );
 
-    // 7. Top 5 topics desde topic_summary
+    // 7. Top 5 topics
     const topTopicsResult = await pool.query(
-      `SELECT 
-        topic,
-        total_count as count,
-        ROUND((positive_count::numeric / NULLIF(total_count, 0)::numeric) * 100, 0) as positive_rate,
-        ROUND((negative_count::numeric / NULLIF(total_count, 0)::numeric) * 100, 0) as negative_rate
-      FROM topic_summary 
-      WHERE client_id = $1
-      ORDER BY total_count DESC
-      LIMIT 5`,
+      `SELECT topic, total_count as count, 
+       ROUND((positive_count::numeric / NULLIF(total_count, 0)::numeric) * 100, 0) as positive_rate 
+       FROM topic_summary WHERE client_id = $1 ORDER BY total_count DESC LIMIT 5`,
       [clientId]
     );
 
@@ -124,10 +102,6 @@ router.get("/", async (req, res) => {
         responseTime: row.response_hours > 0 ? `${row.response_hours}h` : "N/A",
       };
     });
-
-    console.log(
-      `✅ Analytics calculado desde resúmenes: ${total} mensajes totales`
-    );
 
     res.json({
       overview: {
@@ -155,7 +129,6 @@ router.get("/", async (req, res) => {
         topic: r.topic,
         count: parseInt(r.count || 0),
         positiveRate: parseInt(r.positive_rate || 0),
-        negativeRate: parseInt(r.negative_rate || 0),
       })),
     });
   } catch (error) {

@@ -42,7 +42,7 @@ router.post("/", upload.single("file"), async (req, res) => {
     const { clientId, channel } = req.body;
 
     if (!clientId) {
-      return res.status(400).json({ error: "clientId is required" });
+      return res.status(400).json({ error: "clientId es requerido" });
     }
 
     if (!req.file) {
@@ -58,6 +58,7 @@ router.post("/", upload.single("file"), async (req, res) => {
       return res.status(404).json({ error: "Cliente no encontrado" });
     }
 
+    // La autorización ya fue verificada por el middleware authorizeClient
     console.log(
       `📤 Upload realizado por ${req.user.username} para cliente ${clientId}`
     );
@@ -90,7 +91,7 @@ router.get("/history", async (req, res) => {
     const { clientId } = req.query;
 
     if (!clientId) {
-      return res.status(400).json({ error: "clientId is required" });
+      return res.status(400).json({ error: "clientId es requerido" });
     }
 
     // Verificar que el cliente existe
@@ -102,8 +103,9 @@ router.get("/history", async (req, res) => {
       return res.status(404).json({ error: "Cliente no encontrado" });
     }
 
+    // La autorización ya fue verificada por el middleware authorizeClient
     console.log(
-      `📜 Historial de uploads solicitado por ${req.user.username} para cliente ${clientId}`
+      `📜 Historial solicitado por ${req.user.username} para cliente ${clientId}`
     );
 
     const result = await pool.query(

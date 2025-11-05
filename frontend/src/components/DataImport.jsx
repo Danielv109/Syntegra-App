@@ -180,7 +180,7 @@ export default function DataImport({ client }) {
                 <span className="text-[13px] text-text-secondary">
                   {jobProgress.state === "processing"
                     ? "Procesando"
-                    : "En cola"}{" "}
+                    : "En cola"}
                   : {jobProgress.processedRecords || 0}/
                   {jobProgress.totalRecords || 0} mensajes
                 </span>

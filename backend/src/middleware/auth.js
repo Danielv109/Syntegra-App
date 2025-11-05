@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import pool from "../db/connection.js";
 
 // IMPORTANTE: Leer JWT_SECRET del .env
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -53,7 +54,9 @@ export async function authorizeClient(req, res, next) {
       return res.status(400).json({ error: "clientId es requerido" });
     }
 
-    // Admin tiene acceso a todo
+    const userId = req.user.userId;
+
+    // Admin tiene acceso total
     if (req.user.role === "admin") {
       console.log(
         `✅ Admin ${req.user.username} autorizado para cliente ${clientId}`
@@ -61,9 +64,20 @@ export async function authorizeClient(req, res, next) {
       return next();
     }
 
-    // Verificar que el usuario tenga acceso al cliente
-    // Por ahora, si no hay tabla team_memberships, permitir acceso
-    // TODO: Implementar verificación de permisos cuando exista team_memberships
+    // Verificar membresía en team_memberships
+    const membershipResult = await pool.query(
+      "SELECT * FROM team_memberships WHERE user_id = $1 AND client_id = $2",
+      [userId, clientId]
+    );
+
+    if (membershipResult.rows.length === 0) {
+      console.log(
+        `❌ Usuario ${req.user.username} NO tiene acceso a cliente ${clientId}`
+      );
+      return res.status(403).json({
+        error: "No tienes permiso para acceder a este cliente",
+      });
+    }
 
     console.log(
       `✅ Usuario ${req.user.username} autorizado para cliente ${clientId}`
@@ -71,9 +85,7 @@ export async function authorizeClient(req, res, next) {
     next();
   } catch (error) {
     console.error("❌ Error en autorización:", error);
-    return res
-      .status(403)
-      .json({ error: "No tienes permiso para acceder a este cliente" });
+    return res.status(403).json({ error: "Error al verificar permisos" });
   }
 }
 

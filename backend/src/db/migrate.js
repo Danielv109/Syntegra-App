@@ -178,6 +178,18 @@ async function migrate() {
       );
     `);
 
+    // Tabla de membresías de equipo (autorización)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS team_memberships (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(50) REFERENCES users(id) ON DELETE CASCADE,
+        client_id VARCHAR(50) REFERENCES clients(id) ON DELETE CASCADE,
+        role VARCHAR(20) DEFAULT 'viewer',
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, client_id)
+      );
+    `);
+
     // Generar hash correcto para "admin123"
     const adminPasswordHash = await bcrypt.hash("admin123", 10);
 
@@ -190,6 +202,14 @@ async function migrate() {
     `,
       ["user_admin", "admin", adminPasswordHash, "admin", "Administrador"]
     );
+
+    // Dar al admin acceso a todos los clientes existentes
+    await client.query(`
+      INSERT INTO team_memberships (user_id, client_id, role)
+      SELECT 'user_admin', id, 'admin'
+      FROM clients
+      ON CONFLICT (user_id, client_id) DO NOTHING;
+    `);
 
     // Índice para búsquedas rápidas
     await client.query(`
@@ -209,6 +229,8 @@ async function migrate() {
       CREATE INDEX IF NOT EXISTS idx_daily_analytics_client_date ON daily_analytics(client_id, date);
       CREATE INDEX IF NOT EXISTS idx_topic_summary_client ON topic_summary(client_id);
       CREATE INDEX IF NOT EXISTS idx_channel_summary_client ON channel_summary(client_id);
+      CREATE INDEX IF NOT EXISTS idx_team_memberships_user ON team_memberships(user_id);
+      CREATE INDEX IF NOT EXISTS idx_team_memberships_client ON team_memberships(client_id);
     `);
 
     console.log("✅ Migrations completed successfully");

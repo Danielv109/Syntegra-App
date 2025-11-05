@@ -120,7 +120,7 @@ export default function ValidationQueue({ client }) {
           <div
             className="h-full bg-gradient-to-r from-accent-primary to-accent-secondary transition-all duration-300"
             style={{ width: `${progress}%` }}
-          ></div>
+          />
         </div>
 
         <div className="bg-dark-bg border border-dark-border rounded-lg p-6 mb-6">

@@ -16,6 +16,7 @@ router.get("/:clientId", async (req, res) => {
       return res.status(404).json({ error: "Cliente no encontrado" });
     }
 
+    // La autorización ya fue verificada por el middleware authorizeClient
     console.log(
       `📬 Mensajes solicitados por ${req.user.username} para cliente ${clientId}`
     );

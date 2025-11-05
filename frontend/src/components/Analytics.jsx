@@ -64,60 +64,43 @@ export default function Analytics({ client }) {
             Tendencia Diaria (Últimos 7 días)
           </h3>
           <div className="space-y-3">
-            {analytics.trends.daily.map((day, idx) => (
-              <div key={idx}>
-                <div className="flex justify-between text-xs text-text-muted mb-1">
-                  <span>{day.date}</span>
-                  <span>
-                    {day.positive + day.neutral + day.negative} mensajes
-                  </span>
+            {analytics.trends.daily.map((day, idx) => {
+              const total = day.positive + day.neutral + day.negative;
+              return (
+                <div key={idx}>
+                  <div className="flex justify-between text-xs text-text-muted mb-1">
+                    <span>{day.date}</span>
+                    <span>{total} mensajes</span>
+                  </div>
+                  <div className="flex h-6 rounded overflow-hidden">
+                    {day.positive > 0 && (
+                      <div
+                        className="bg-accent-success flex items-center justify-center text-white text-xs font-medium"
+                        style={{ width: `${(day.positive / total) * 100}%` }}
+                      >
+                        {day.positive}
+                      </div>
+                    )}
+                    {day.neutral > 0 && (
+                      <div
+                        className="bg-accent-warning flex items-center justify-center text-white text-xs font-medium"
+                        style={{ width: `${(day.neutral / total) * 100}%` }}
+                      >
+                        {day.neutral}
+                      </div>
+                    )}
+                    {day.negative > 0 && (
+                      <div
+                        className="bg-accent-error flex items-center justify-center text-white text-xs font-medium"
+                        style={{ width: `${(day.negative / total) * 100}%` }}
+                      >
+                        {day.negative}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="flex h-6 rounded overflow-hidden">
-                  {day.positive > 0 && (
-                    <div
-                      className="bg-accent-success flex items-center justify-center text-white text-xs font-medium"
-                      style={{
-                        width: `${
-                          (day.positive /
-                            (day.positive + day.neutral + day.negative)) *
-                          100
-                        }%`,
-                      }}
-                    >
-                      {day.positive}
-                    </div>
-                  )}
-                  {day.neutral > 0 && (
-                    <div
-                      className="bg-accent-warning flex items-center justify-center text-white text-xs font-medium"
-                      style={{
-                        width: `${
-                          (day.neutral /
-                            (day.positive + day.neutral + day.negative)) *
-                          100
-                        }%`,
-                      }}
-                    >
-                      {day.neutral}
-                    </div>
-                  )}
-                  {day.negative > 0 && (
-                    <div
-                      className="bg-accent-error flex items-center justify-center text-white text-xs font-medium"
-                      style={{
-                        width: `${
-                          (day.negative /
-                            (day.positive + day.neutral + day.negative)) *
-                          100
-                        }%`,
-                      }}
-                    >
-                      {day.negative}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -126,60 +109,43 @@ export default function Analytics({ client }) {
             Tendencia Semanal (Últimas 4 semanas)
           </h3>
           <div className="space-y-3">
-            {analytics.trends.weekly.map((week, idx) => (
-              <div key={idx}>
-                <div className="flex justify-between text-xs text-text-muted mb-1">
-                  <span>{week.week}</span>
-                  <span>
-                    {week.positive + week.neutral + week.negative} mensajes
-                  </span>
+            {analytics.trends.weekly.map((week, idx) => {
+              const total = week.positive + week.neutral + week.negative;
+              return (
+                <div key={idx}>
+                  <div className="flex justify-between text-xs text-text-muted mb-1">
+                    <span>{week.week}</span>
+                    <span>{total} mensajes</span>
+                  </div>
+                  <div className="flex h-6 rounded overflow-hidden">
+                    {week.positive > 0 && (
+                      <div
+                        className="bg-accent-success flex items-center justify-center text-white text-xs font-medium"
+                        style={{ width: `${(week.positive / total) * 100}%` }}
+                      >
+                        {week.positive}
+                      </div>
+                    )}
+                    {week.neutral > 0 && (
+                      <div
+                        className="bg-accent-warning flex items-center justify-center text-white text-xs font-medium"
+                        style={{ width: `${(week.neutral / total) * 100}%` }}
+                      >
+                        {week.neutral}
+                      </div>
+                    )}
+                    {week.negative > 0 && (
+                      <div
+                        className="bg-accent-error flex items-center justify-center text-white text-xs font-medium"
+                        style={{ width: `${(week.negative / total) * 100}%` }}
+                      >
+                        {week.negative}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="flex h-6 rounded overflow-hidden">
-                  {week.positive > 0 && (
-                    <div
-                      className="bg-accent-success flex items-center justify-center text-white text-xs font-medium"
-                      style={{
-                        width: `${
-                          (week.positive /
-                            (week.positive + week.neutral + week.negative)) *
-                          100
-                        }%`,
-                      }}
-                    >
-                      {week.positive}
-                    </div>
-                  )}
-                  {week.neutral > 0 && (
-                    <div
-                      className="bg-accent-warning flex items-center justify-center text-white text-xs font-medium"
-                      style={{
-                        width: `${
-                          (week.neutral /
-                            (week.positive + week.neutral + week.negative)) *
-                          100
-                        }%`,
-                      }}
-                    >
-                      {week.neutral}
-                    </div>
-                  )}
-                  {week.negative > 0 && (
-                    <div
-                      className="bg-accent-error flex items-center justify-center text-white text-xs font-medium"
-                      style={{
-                        width: `${
-                          (week.negative /
-                            (week.positive + week.neutral + week.negative)) *
-                          100
-                        }%`,
-                      }}
-                    >
-                      {week.negative}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>

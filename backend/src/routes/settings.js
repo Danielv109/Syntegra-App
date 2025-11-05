@@ -8,7 +8,7 @@ router.get("/", async (req, res) => {
     const { clientId } = req.query;
 
     if (!clientId) {
-      return res.status(400).json({ error: "clientId is required" });
+      return res.status(400).json({ error: "clientId es requerido" });
     }
 
     // Verificar que el cliente existe
@@ -20,6 +20,7 @@ router.get("/", async (req, res) => {
       return res.status(404).json({ error: "Cliente no encontrado" });
     }
 
+    // La autorización ya fue verificada por el middleware authorizeClient
     console.log(
       `⚙️ Settings solicitados por ${req.user.username} para cliente ${clientId}`
     );
@@ -67,7 +68,7 @@ router.put("/", async (req, res) => {
     const { clientId, notifications, processing, integrations } = req.body;
 
     if (!clientId) {
-      return res.status(400).json({ error: "clientId is required" });
+      return res.status(400).json({ error: "clientId es requerido" });
     }
 
     // Verificar que el cliente existe
@@ -79,6 +80,7 @@ router.put("/", async (req, res) => {
       return res.status(404).json({ error: "Cliente no encontrado" });
     }
 
+    // La autorización ya fue verificada por el middleware authorizeClient
     console.log(
       `⚙️ Settings actualizado por ${req.user.username} para cliente ${clientId}`
     );
