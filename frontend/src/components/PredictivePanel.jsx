@@ -2,93 +2,35 @@ import React from "react";
 
 export default function PredictivePanel({ predictive }) {
   return (
-    <div
-      style={{
-        background: "#18181b",
-        padding: 24,
-        borderRadius: 8,
-        border: "1px solid #27272a",
-      }}
-    >
-      <h3
-        style={{
-          marginBottom: 20,
-          fontSize: 15,
-          fontWeight: 600,
-          color: "#ffffff",
-        }}
-      >
+    <div className="card">
+      <h3 className="mb-5 text-[15px] font-semibold text-text-primary">
         Alertas predictivas
       </h3>
-      <ul
-        style={{
-          listStyle: "none",
-          padding: 0,
-          margin: 0,
-          display: "flex",
-          flexDirection: "column",
-          gap: 18,
-        }}
-      >
+      <ul className="flex flex-col gap-4 list-none p-0 m-0">
         {predictive.map((p, i) => {
           const color =
-            p.score > 60 ? "#10b981" : p.score > 30 ? "#818cf8" : "#ef4444";
+            p.score > 60 ? "#10b981" : p.score > 30 ? "#a78bfa" : "#ef4444";
           return (
-            <li
-              key={i}
-              style={{ display: "flex", flexDirection: "column", gap: 10 }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 500,
-                    color: "#e4e4e7",
-                  }}
-                >
+            <li key={i} className="flex flex-col gap-2.5">
+              <div className="flex justify-between items-center">
+                <span className="text-[13px] font-medium text-text-secondary">
                   {p.name}
                 </span>
-                <span
-                  style={{
-                    fontSize: 14,
-                    fontWeight: 600,
-                    color: "#ffffff",
-                  }}
-                >
+                <span className="text-sm font-semibold text-text-primary">
                   {p.score}%
                 </span>
               </div>
-              <div
-                style={{
-                  height: 4,
-                  background: "#27272a",
-                  borderRadius: 2,
-                  overflow: "hidden",
-                }}
-              >
+              <div className="h-1 bg-dark-bg rounded overflow-hidden">
                 <div
+                  className="h-full rounded transition-all"
                   style={{
-                    height: "100%",
                     width: `${p.score}%`,
                     background: color,
-                    borderRadius: 2,
                     boxShadow: `0 0 8px ${color}40`,
                   }}
                 />
               </div>
-              <div
-                style={{
-                  fontSize: 11,
-                  color: "#94a3b8",
-                  fontWeight: 500,
-                }}
-              >
+              <div className="text-[11px] text-text-disabled font-medium">
                 {p.trend === "up"
                   ? "↑ Tendencia al alza"
                   : p.trend === "down"

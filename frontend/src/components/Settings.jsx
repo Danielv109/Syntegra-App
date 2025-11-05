@@ -1,25 +1,27 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
 
 export default function Settings({ client }) {
   const [settings, setSettings] = useState(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
-  const [viewMode, setViewMode] = useState("client"); // "client" o "global"
   const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
   useEffect(() => {
     axios
-      .get(`${apiUrl}/api/settings?clientId=${client.id}&mode=${viewMode}`)
+      .get(`${apiUrl}/api/settings?clientId=${client.id}`)
       .then((r) => setSettings(r.data));
-  }, [client, viewMode]);
+  }, [client]);
 
   const handleSave = async () => {
     setSaving(true);
     setMessage("");
     try {
-      await axios.put(`${apiUrl}/api/settings`, settings);
-      setMessage("✅ Configuración guardada exitosamente");
+      await axios.put(`${apiUrl}/api/settings`, {
+        clientId: client.id,
+        ...settings,
+      });
+      setMessage("✅ Configuración guardada correctamente");
     } catch (error) {
       setMessage("❌ Error al guardar configuración");
     } finally {
@@ -27,90 +29,29 @@ export default function Settings({ client }) {
     }
   };
 
-  if (!settings) return <div>Cargando configuración...</div>;
+  if (!settings)
+    return (
+      <div className="text-sm text-text-muted">Cargando configuración...</div>
+    );
 
   return (
     <div>
-      <h1
-        style={{
-          fontSize: 28,
-          marginBottom: 6,
-          color: "#ffffff",
-          fontWeight: 600,
-        }}
-      >
+      <h1 className="text-3xl mb-2 text-text-primary font-bold">
         Settings - {client.name}
       </h1>
-      <p style={{ color: "#94a3b8", marginBottom: 24, fontSize: 14 }}>
+      <p className="text-text-muted mb-8 text-sm">
         Configura notificaciones,{" "}
-        <span style={{ color: "#ef4444" }}>integraciones</span> y preferencias
+        <span className="text-accent-error">integraciones</span> y preferencias
         del sistema.
       </p>
 
-      <div style={{ display: "flex", gap: 12, marginBottom: 32 }}>
-        <button
-          onClick={() => setViewMode("client")}
-          style={{
-            padding: "8px 20px",
-            background: viewMode === "client" ? "#6366f1" : "#27272a",
-            color: viewMode === "client" ? "#fff" : "#a1a1aa",
-            border: "none",
-            borderRadius: 6,
-            cursor: "pointer",
-            fontWeight: 500,
-            fontSize: 14,
-          }}
-        >
-          Configuración del Cliente
-        </button>
-        <button
-          onClick={() => setViewMode("global")}
-          style={{
-            padding: "8px 20px",
-            background: viewMode === "global" ? "#6366f1" : "#27272a",
-            color: viewMode === "global" ? "#fff" : "#a1a1aa",
-            border: "none",
-            borderRadius: 6,
-            cursor: "pointer",
-            fontWeight: 500,
-            fontSize: 14,
-          }}
-        >
-          Configuración Global
-        </button>
-      </div>
-
-      <div style={{ display: "grid", gap: 16 }}>
-        <div
-          style={{
-            background: "#18181b",
-            padding: 24,
-            borderRadius: 8,
-            border: "1px solid #27272a",
-          }}
-        >
-          <h3
-            style={{
-              marginTop: 0,
-              color: "#ffffff",
-              fontSize: 15,
-              fontWeight: 600,
-              marginBottom: 20,
-            }}
-          >
+      <div className="flex flex-col gap-4">
+        <div className="card">
+          <h3 className="mt-0 text-text-primary text-[15px] font-semibold mb-5">
             Notificaciones
           </h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <label
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                cursor: "pointer",
-                color: "#d4d4d8",
-                fontSize: 14,
-              }}
-            >
+          <div className="flex flex-col gap-3.5">
+            <label className="flex items-center gap-2.5 cursor-pointer text-text-secondary text-sm">
               <input
                 type="checkbox"
                 checked={settings.notifications.email}
@@ -123,20 +64,11 @@ export default function Settings({ client }) {
                     },
                   })
                 }
-                style={{ width: 16, height: 16, cursor: "pointer" }}
+                className="w-4 h-4 cursor-pointer"
               />
               Notificaciones por Email
             </label>
-            <label
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                cursor: "pointer",
-                color: "#d4d4d8",
-                fontSize: 14,
-              }}
-            >
+            <label className="flex items-center gap-2.5 cursor-pointer text-text-secondary text-sm">
               <input
                 type="checkbox"
                 checked={settings.notifications.slack}
@@ -149,43 +81,19 @@ export default function Settings({ client }) {
                     },
                   })
                 }
-                style={{ width: 16, height: 16, cursor: "pointer" }}
+                className="w-4 h-4 cursor-pointer"
               />
               Notificaciones por Slack
             </label>
           </div>
         </div>
 
-        <div
-          style={{
-            background: "#18181b",
-            padding: 24,
-            borderRadius: 8,
-            border: "1px solid #27272a",
-          }}
-        >
-          <h3
-            style={{
-              marginTop: 0,
-              color: "#ffffff",
-              fontSize: 15,
-              fontWeight: 600,
-              marginBottom: 20,
-            }}
-          >
+        <div className="card">
+          <h3 className="mt-0 text-text-primary text-[15px] font-semibold mb-5">
             Procesamiento
           </h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <label
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                cursor: "pointer",
-                color: "#d4d4d8",
-                fontSize: 14,
-              }}
-            >
+          <div className="flex flex-col gap-3.5">
+            <label className="flex items-center gap-2.5 cursor-pointer text-text-secondary text-sm">
               <input
                 type="checkbox"
                 checked={settings.processing.autoClassify}
@@ -198,20 +106,11 @@ export default function Settings({ client }) {
                     },
                   })
                 }
-                style={{ width: 16, height: 16, cursor: "pointer" }}
+                className="w-4 h-4 cursor-pointer"
               />
               Clasificación automática con IA
             </label>
-            <label
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                cursor: "pointer",
-                color: "#d4d4d8",
-                fontSize: 14,
-              }}
-            >
+            <label className="flex items-center gap-2.5 cursor-pointer text-text-secondary text-sm">
               <input
                 type="checkbox"
                 checked={settings.processing.humanValidation}
@@ -224,59 +123,27 @@ export default function Settings({ client }) {
                     },
                   })
                 }
-                style={{ width: 16, height: 16, cursor: "pointer" }}
+                className="w-4 h-4 cursor-pointer"
               />
               Validación humana para casos críticos
             </label>
           </div>
         </div>
 
-        <div
-          style={{
-            background: "#18181b",
-            padding: 24,
-            borderRadius: 8,
-            border: "1px solid #27272a",
-          }}
-        >
-          <h3
-            style={{
-              marginTop: 0,
-              color: "#ffffff",
-              fontSize: 15,
-              fontWeight: 600,
-              marginBottom: 20,
-            }}
-          >
+        <div className="card">
+          <h3 className="mt-0 text-text-primary text-[15px] font-semibold mb-5">
             Integraciones
           </h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div className="flex flex-col gap-3.5">
             {Object.entries(settings.integrations).map(([key, value]) => (
-              <div
-                key={key}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <span
-                  style={{ fontWeight: 500, color: "#d4d4d8", fontSize: 14 }}
-                >
+              <div key={key} className="flex justify-between items-center">
+                <span className="font-medium text-text-secondary text-sm">
                   {key.charAt(0).toUpperCase() + key.slice(1)}
                 </span>
                 <span
-                  style={{
-                    padding: "4px 10px",
-                    borderRadius: 4,
-                    fontSize: 11,
-                    background: value.enabled ? "#1a231e" : "#261a1a",
-                    color: value.enabled ? "#a7f3d0" : "#fca5a5",
-                    border: `1px solid ${
-                      value.enabled ? "#273830" : "#3a2626"
-                    }`,
-                    fontWeight: 500,
-                  }}
+                  className={`badge ${
+                    value.enabled ? "badge-success" : "badge-error"
+                  } font-medium`}
                 >
                   {value.enabled ? "Conectado" : "Desconectado"}
                 </span>
@@ -286,39 +153,16 @@ export default function Settings({ client }) {
         </div>
       </div>
 
-      <div style={{ marginTop: 24 }}>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          style={{
-            padding: "10px 20px",
-            background: saving ? "#27272a" : "#6366f1",
-            color: saving ? "#71717a" : "#fff",
-            border: "none",
-            borderRadius: 6,
-            cursor: saving ? "not-allowed" : "pointer",
-            fontWeight: 500,
-            fontSize: 14,
-            transition: "all 0.15s",
-          }}
-        >
+      <div className="mt-6">
+        <button onClick={handleSave} disabled={saving} className="btn-primary">
           {saving ? "Guardando..." : "Guardar Configuración"}
         </button>
 
         {message && (
           <div
-            style={{
-              marginTop: 16,
-              padding: "12px 16px",
-              borderRadius: 6,
-              background: message.startsWith("✅") ? "#1a231e" : "#261a1a",
-              color: message.startsWith("✅") ? "#a7f3d0" : "#fca5a5",
-              border: `1px solid ${
-                message.startsWith("✅") ? "#273830" : "#3a2626"
-              }`,
-              display: "inline-block",
-              fontSize: 13,
-            }}
+            className={`mt-4 px-4 py-3 rounded-md text-[13px] inline-block ${
+              message.startsWith("✅") ? "badge-success" : "badge-error"
+            }`}
           >
             {message}
           </div>

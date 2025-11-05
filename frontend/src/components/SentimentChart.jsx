@@ -12,22 +12,8 @@ import {
 
 export default function SentimentChart({ data }) {
   return (
-    <div
-      style={{
-        background: "#18181b",
-        padding: 24,
-        borderRadius: 8,
-        border: "1px solid #27272a",
-      }}
-    >
-      <h3
-        style={{
-          marginBottom: 24,
-          fontSize: 15,
-          fontWeight: 600,
-          color: "#fafafa",
-        }}
-      >
+    <div className="card">
+      <h3 className="mb-6 text-[15px] font-semibold text-text-primary">
         Sentimiento por canal
       </h3>
       <ResponsiveContainer width="100%" height={280}>

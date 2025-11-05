@@ -23,174 +23,58 @@ export default function Analytics({ client }) {
       .then((r) => setData(r.data));
   }, [client]);
 
-  if (!data) return <div>Cargando analytics...</div>;
+  if (!data)
+    return <div className="text-sm text-text-muted">Cargando analytics...</div>;
 
   return (
     <div>
-      <h1
-        style={{
-          fontSize: 28,
-          marginBottom: 6,
-          color: "#ffffff",
-          fontWeight: 600,
-        }}
-      >
+      <h1 className="text-3xl mb-2 text-text-primary font-bold">
         Analytics - {client.name}
       </h1>
-      <p style={{ color: "#94a3b8", marginBottom: 32, fontSize: 14 }}>
+      <p className="text-text-muted mb-8 text-sm">
         Análisis profundo de{" "}
-        <span style={{ color: "#ef4444" }}>tendencias</span>, comportamiento y
+        <span className="text-accent-error">tendencias</span>, comportamiento y
         métricas clave.
       </p>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4,1fr)",
-          gap: 16,
-          marginBottom: 24,
-        }}
-      >
-        <div
-          style={{
-            background: "#18181b",
-            padding: "20px 24px",
-            borderRadius: 8,
-            border: "1px solid #27272a",
-          }}
-        >
-          <div
-            style={{
-              fontSize: 12,
-              color: "#71717a",
-              textTransform: "uppercase",
-              letterSpacing: "0.3px",
-              fontWeight: 500,
-            }}
-          >
+      <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="card">
+          <div className="text-xs text-text-disabled uppercase tracking-wider font-medium">
             Total Mensajes
           </div>
-          <div
-            style={{
-              fontSize: 32,
-              fontWeight: 600,
-              marginTop: 10,
-              color: "#fafafa",
-            }}
-          >
+          <div className="text-[32px] font-bold mt-2 text-text-primary">
             {data.overview.totalMessages}
           </div>
         </div>
-        <div
-          style={{
-            background: "#18181b",
-            padding: "20px 24px",
-            borderRadius: 8,
-            border: "1px solid #27272a",
-          }}
-        >
-          <div
-            style={{
-              fontSize: 12,
-              color: "#71717a",
-              textTransform: "uppercase",
-              letterSpacing: "0.3px",
-              fontWeight: 500,
-            }}
-          >
+        <div className="card">
+          <div className="text-xs text-text-disabled uppercase tracking-wider font-medium">
             Sentimiento Promedio
           </div>
-          <div
-            style={{
-              fontSize: 32,
-              fontWeight: 600,
-              marginTop: 10,
-              color: "#fafafa",
-            }}
-          >
+          <div className="text-[32px] font-bold mt-2 text-text-primary">
             {data.overview.avgSentiment}%
           </div>
         </div>
-        <div
-          style={{
-            background: "#18181b",
-            padding: "20px 24px",
-            borderRadius: 8,
-            border: "1px solid #27272a",
-          }}
-        >
-          <div
-            style={{
-              fontSize: 12,
-              color: "#71717a",
-              textTransform: "uppercase",
-              letterSpacing: "0.3px",
-              fontWeight: 500,
-            }}
-          >
+        <div className="card">
+          <div className="text-xs text-text-disabled uppercase tracking-wider font-medium">
             Canal Principal
           </div>
-          <div
-            style={{
-              fontSize: 32,
-              fontWeight: 600,
-              marginTop: 10,
-              color: "#fafafa",
-            }}
-          >
+          <div className="text-[32px] font-bold mt-2 text-text-primary">
             {data.overview.topChannel}
           </div>
         </div>
-        <div
-          style={{
-            background: "#18181b",
-            padding: "20px 24px",
-            borderRadius: 8,
-            border: "1px solid #27272a",
-          }}
-        >
-          <div
-            style={{
-              fontSize: 12,
-              color: "#71717a",
-              textTransform: "uppercase",
-              letterSpacing: "0.3px",
-              fontWeight: 500,
-            }}
-          >
+        <div className="card">
+          <div className="text-xs text-text-disabled uppercase tracking-wider font-medium">
             Tasa de Respuesta
           </div>
-          <div
-            style={{
-              fontSize: 32,
-              fontWeight: 600,
-              marginTop: 10,
-              color: "#fafafa",
-            }}
-          >
+          <div className="text-[32px] font-bold mt-2 text-text-primary">
             {data.overview.responseRate}%
           </div>
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-        <div
-          style={{
-            background: "#18181b",
-            padding: 24,
-            borderRadius: 8,
-            border: "1px solid #27272a",
-          }}
-        >
-          <h3
-            style={{
-              marginTop: 0,
-              marginBottom: 24,
-              color: "#ffffff",
-              fontSize: 15,
-              fontWeight: 600,
-            }}
-          >
+      <div className="grid grid-cols-2 gap-4">
+        <div className="card">
+          <h3 className="mt-0 mb-6 text-text-primary text-[15px] font-semibold">
             Tendencia Diaria
           </h3>
           <ResponsiveContainer width="100%" height={280}>
@@ -252,23 +136,8 @@ export default function Analytics({ client }) {
           </ResponsiveContainer>
         </div>
 
-        <div
-          style={{
-            background: "#18181b",
-            padding: 24,
-            borderRadius: 8,
-            border: "1px solid #27272a",
-          }}
-        >
-          <h3
-            style={{
-              marginTop: 0,
-              marginBottom: 24,
-              color: "#ffffff",
-              fontSize: 15,
-              fontWeight: 600,
-            }}
-          >
+        <div className="card">
+          <h3 className="mt-0 mb-6 text-text-primary text-[15px] font-semibold">
             Tendencia Semanal
           </h3>
           <ResponsiveContainer width="100%" height={280}>
@@ -326,125 +195,42 @@ export default function Analytics({ client }) {
         </div>
       </div>
 
-      <div
-        style={{
-          marginTop: 16,
-          background: "#18181b",
-          padding: 24,
-          borderRadius: 8,
-          border: "1px solid #27272a",
-        }}
-      >
-        <h3
-          style={{
-            marginTop: 0,
-            marginBottom: 20,
-            color: "#ffffff",
-            fontSize: 15,
-            fontWeight: 600,
-          }}
-        >
+      <div className="card mt-4">
+        <h3 className="mt-0 mb-5 text-text-primary text-[15px] font-semibold">
           Comparativa por Canal
         </h3>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <table className="w-full border-collapse">
           <thead>
-            <tr style={{ borderBottom: "1px solid #27272a" }}>
-              <th
-                style={{
-                  textAlign: "left",
-                  padding: "12px 0",
-                  color: "#71717a",
-                  fontWeight: 500,
-                  fontSize: 12,
-                }}
-              >
-                Canal
-              </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  padding: "12px 0",
-                  color: "#71717a",
-                  fontWeight: 500,
-                  fontSize: 12,
-                }}
-              >
-                Mensajes
-              </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  padding: "12px 0",
-                  color: "#71717a",
-                  fontWeight: 500,
-                  fontSize: 12,
-                }}
-              >
-                Sentimiento
-              </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  padding: "12px 0",
-                  color: "#71717a",
-                  fontWeight: 500,
-                  fontSize: 12,
-                }}
-              >
-                Tiempo de Respuesta
-              </th>
+            <tr className="border-b border-dark-border">
+              <th className="table-header">Canal</th>
+              <th className="table-header">Mensajes</th>
+              <th className="table-header">Sentimiento</th>
+              <th className="table-header">Tiempo de Respuesta</th>
             </tr>
           </thead>
           <tbody>
             {Object.entries(data.channelComparison).map(([key, value]) => (
-              <tr key={key} style={{ borderBottom: "1px solid #27272a" }}>
-                <td
-                  style={{
-                    padding: "14px 0",
-                    fontWeight: 500,
-                    color: "#fafafa",
-                    fontSize: 13,
-                  }}
-                >
+              <tr key={key} className="table-row">
+                <td className="py-3.5 font-semibold text-text-primary text-[13px]">
                   {key.charAt(0).toUpperCase() + key.slice(1)}
                 </td>
-                <td
-                  style={{ padding: "14px 0", color: "#d4d4d8", fontSize: 13 }}
-                >
+                <td className="py-3.5 text-text-secondary text-[13px]">
                   {value.messages}
                 </td>
-                <td style={{ padding: "14px 0" }}>
-                  <div
-                    style={{ display: "flex", alignItems: "center", gap: 10 }}
-                  >
-                    <div
-                      style={{
-                        flex: 1,
-                        height: 6,
-                        background: "#27272a",
-                        borderRadius: 3,
-                      }}
-                    >
+                <td className="py-3.5">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex-1 h-2 bg-dark-bg rounded">
                       <div
-                        style={{
-                          width: `${value.sentiment}%`,
-                          height: "100%",
-                          background: "#818cf8",
-                          borderRadius: 3,
-                          boxShadow: "0 0 8px #818cf840",
-                        }}
+                        className="h-full bg-accent-primary rounded"
+                        style={{ width: `${value.sentiment}%` }}
                       />
                     </div>
-                    <span
-                      style={{ color: "#d4d4d8", fontSize: 13, minWidth: 40 }}
-                    >
+                    <span className="text-text-secondary text-[13px] min-w-[40px]">
                       {value.sentiment}%
                     </span>
                   </div>
                 </td>
-                <td
-                  style={{ padding: "14px 0", color: "#d4d4d8", fontSize: 13 }}
-                >
+                <td className="py-3.5 text-text-secondary text-[13px]">
                   {value.responseTime}
                 </td>
               </tr>

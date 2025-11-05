@@ -8,73 +8,31 @@ const priorityColors = {
 
 export default function ActionsPanel({ actions }) {
   return (
-    <div
-      style={{
-        background: "#18181b",
-        padding: 24,
-        borderRadius: 8,
-        border: "1px solid #27272a",
-      }}
-    >
-      <h3
-        style={{
-          marginBottom: 20,
-          fontSize: 15,
-          fontWeight: 600,
-          color: "#ffffff",
-        }}
-      >
+    <div className="card">
+      <h3 className="mb-5 text-[15px] font-semibold text-text-primary">
         Acciones sugeridas
       </h3>
-      <ul
-        style={{
-          listStyle: "none",
-          padding: 0,
-          margin: 0,
-          display: "flex",
-          flexDirection: "column",
-          gap: 16,
-        }}
-      >
+      <ul className="flex flex-col gap-4 list-none p-0 m-0">
         {actions.map((a, i) => (
           <li
             key={i}
-            style={{
-              paddingBottom: 16,
-              borderBottom:
-                i < actions.length - 1 ? "1px solid #27272a" : "none",
-            }}
+            className={`pb-4 ${
+              i < actions.length - 1 ? "border-b border-dark-border" : ""
+            }`}
           >
-            <div style={{ display: "flex", alignItems: "start", gap: 12 }}>
+            <div className="flex items-start gap-3">
               <div
+                className="w-1 h-1 rounded-full mt-2 flex-shrink-0"
                 style={{
-                  width: 4,
-                  height: 4,
-                  borderRadius: "50%",
                   background: priorityColors[a.priority],
-                  marginTop: 8,
-                  flexShrink: 0,
                   boxShadow: `0 0 8px ${priorityColors[a.priority]}60`,
                 }}
               />
-              <div style={{ flex: 1 }}>
-                <div
-                  style={{
-                    fontWeight: 500,
-                    fontSize: 14,
-                    marginBottom: 6,
-                    color: "#ffffff",
-                  }}
-                >
+              <div className="flex-1">
+                <div className="font-medium text-sm mb-1.5 text-text-primary">
                   {a.title}
                 </div>
-                <div
-                  style={{
-                    fontSize: 13,
-                    color: "#a1a1aa",
-                    lineHeight: 1.6,
-                  }}
-                >
+                <div className="text-[13px] text-text-muted leading-relaxed">
                   {a.description}
                 </div>
               </div>

@@ -8,63 +8,30 @@ const sentimentColors = {
 
 export default function TopicsPanel({ topics }) {
   return (
-    <div
-      style={{
-        background: "#18181b",
-        padding: 24,
-        borderRadius: 8,
-        border: "1px solid #27272a",
-      }}
-    >
-      <h3
-        style={{
-          marginBottom: 20,
-          fontSize: 15,
-          fontWeight: 600,
-          color: "#ffffff",
-        }}
-      >
+    <div className="card">
+      <h3 className="mb-5 text-[15px] font-semibold text-text-primary">
         Temas recurrentes
       </h3>
-      <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+      <ul className="list-none p-0 m-0">
         {topics.map((t, i) => (
           <li
             key={i}
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              padding: "14px 0",
-              borderBottom:
-                i < topics.length - 1 ? "1px solid #27272a" : "none",
-            }}
+            className={`flex justify-between items-center py-3.5 ${
+              i < topics.length - 1 ? "border-b border-dark-border" : ""
+            }`}
           >
             <div>
-              <span
-                style={{
-                  fontWeight: 500,
-                  color: "#fafafa",
-                  fontSize: 14,
-                }}
-              >
+              <span className="font-medium text-text-primary text-sm">
                 {t.topic}
               </span>
             </div>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-              }}
-            >
-              <span style={{ fontSize: 13, color: "#94a3b8" }}>
+            <div className="flex items-center gap-3">
+              <span className="text-[13px] text-text-disabled">
                 {t.count} menciones
               </span>
               <div
+                className="w-1.5 h-1.5 rounded-full"
                 style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: "50%",
                   background: sentimentColors[t.sentiment],
                   boxShadow: `0 0 8px ${sentimentColors[t.sentiment]}40`,
                 }}

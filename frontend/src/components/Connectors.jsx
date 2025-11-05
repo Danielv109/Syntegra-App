@@ -1,25 +1,120 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 
+function ConnectorCard({ connector, onToggle, onTest, onDelete }) {
+  return (
+    <div className="card flex justify-between items-center">
+      <div className="flex-1">
+        <div className="flex items-center gap-3 mb-3">
+          <h3 className="text-lg text-text-primary font-semibold">
+            {connector.type.toUpperCase()} - {connector.name}
+          </h3>
+          <span
+            className={`badge font-medium capitalize ${
+              connector.status === "active"
+                ? "badge-success"
+                : connector.status === "error"
+                ? "badge-error"
+                : "badge-warning"
+            }`}
+          >
+            {connector.status}
+          </span>
+        </div>
+
+        <div className="text-text-muted text-[13px] mb-3">
+          Última sincronización:{" "}
+          {connector.last_sync
+            ? new Date(connector.last_sync).toLocaleString()
+            : "Nunca"}
+        </div>
+
+        <div className="flex gap-4 text-[13px]">
+          <div>
+            <span className="text-text-disabled">Frecuencia: </span>
+            <span className="text-text-secondary">{connector.frequency}</span>
+          </div>
+          <div>
+            <span className="text-text-disabled">Mensajes importados: </span>
+            <span className="text-text-secondary">
+              {connector.total_messages || 0}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex gap-3 items-center">
+        <button
+          onClick={onTest}
+          className="btn-secondary px-4 py-2 text-[13px]"
+        >
+          Probar
+        </button>
+
+        <button
+          onClick={onDelete}
+          className="px-4 py-2 bg-accent-error/10 text-accent-error border border-accent-error/20 rounded-md cursor-pointer text-[13px] font-medium hover:bg-accent-error/20 transition-all"
+        >
+          Eliminar
+        </button>
+
+        <label className="flex items-center cursor-pointer">
+          <input
+            type="checkbox"
+            checked={connector.enabled}
+            onChange={(e) => onToggle(e.target.checked)}
+            className="w-[18px] h-[18px] cursor-pointer"
+          />
+          <span className="ml-2 text-text-secondary text-[13px]">
+            {connector.enabled ? "Activo" : "Inactivo"}
+          </span>
+        </label>
+      </div>
+    </div>
+  );
+}
+
 export default function Connectors({ client }) {
   const [connectors, setConnectors] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showAddConnector, setShowAddConnector] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [newConnector, setNewConnector] = useState({
+    type: "whatsapp",
+    name: "",
+    apiKey: "",
+    frequency: "hourly",
+  });
 
   const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
   useEffect(() => {
     loadConnectors();
-  }, [client]);
+  }, []);
 
   const loadConnectors = async () => {
     try {
       const res = await axios.get(`${apiUrl}/api/connectors/${client.id}`);
-      setConnectors(res.data.connectors || []);
-      setLoading(false);
+      setConnectors(res.data.connectors);
     } catch (error) {
       console.error("Error loading connectors:", error);
-      setLoading(false);
+    }
+  };
+
+  const handleCreate = async () => {
+    try {
+      await axios.post(`${apiUrl}/api/connectors`, {
+        clientId: client.id,
+        ...newConnector,
+      });
+      setShowModal(false);
+      setNewConnector({
+        type: "whatsapp",
+        name: "",
+        apiKey: "",
+        frequency: "hourly",
+      });
+      loadConnectors();
+    } catch (error) {
+      console.error("Error creating connector:", error);
     }
   };
 
@@ -42,7 +137,6 @@ export default function Connectors({ client }) {
       loadConnectors();
     } catch (error) {
       console.error("Error deleting connector:", error);
-      alert("Error al eliminar conector");
     }
   };
 
@@ -51,89 +145,32 @@ export default function Connectors({ client }) {
       const res = await axios.post(
         `${apiUrl}/api/connectors/${connectorId}/test`
       );
-      if (res.data.success) {
-        alert("✓ " + res.data.message);
-        loadConnectors(); // Recargar para ver el nuevo estado
-      } else {
-        alert("✗ " + res.data.message);
-        loadConnectors();
-      }
+      alert(
+        res.data.success ? "✓ " + res.data.message : "✗ " + res.data.message
+      );
+      loadConnectors();
     } catch (error) {
       alert("✗ Error al probar conexión");
     }
   };
 
-  if (loading) {
-    return (
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "80vh",
-        }}
-      >
-        <div style={{ fontSize: 14, color: "#71717a" }}>
-          Cargando conectores...
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div>
-      <header
-        style={{
-          marginBottom: 32,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "start",
-        }}
-      >
+      <div className="flex justify-between items-center mb-8">
         <div>
-          <h1
-            style={{
-              fontSize: 28,
-              marginBottom: 6,
-              color: "#ffffff",
-              fontWeight: 600,
-            }}
-          >
-            Conectores e Integraciones
+          <h1 className="text-3xl mb-2 text-text-primary font-bold">
+            Connectors - {client.name}
           </h1>
-          <p style={{ color: "#94a3b8", fontSize: 14 }}>
-            Configura fuentes de datos automáticas para {client.name}
+          <p className="text-text-muted text-sm">
+            Conecta tus canales de comunicación para importación automática
           </p>
         </div>
-        <button
-          onClick={() => setShowAddConnector(!showAddConnector)}
-          style={{
-            padding: "10px 20px",
-            background: "#6366f1",
-            color: "#fff",
-            border: "none",
-            borderRadius: 6,
-            cursor: "pointer",
-            fontWeight: 500,
-            fontSize: 14,
-          }}
-        >
-          + Agregar Conector
+        <button onClick={() => setShowModal(true)} className="btn-primary">
+          + Nuevo Conector
         </button>
-      </header>
+      </div>
 
-      {showAddConnector && (
-        <AddConnectorForm
-          client={client}
-          onClose={() => setShowAddConnector(false)}
-          onSuccess={() => {
-            loadConnectors();
-            setShowAddConnector(false);
-          }}
-        />
-      )}
-
-      <div style={{ display: "grid", gap: 16 }}>
+      <div className="flex flex-col gap-4">
         {connectors.map((connector) => (
           <ConnectorCard
             key={connector.id}
@@ -144,392 +181,112 @@ export default function Connectors({ client }) {
           />
         ))}
 
-        {connectors.length === 0 && !showAddConnector && (
-          <div
-            style={{
-              background: "#18181b",
-              padding: 40,
-              borderRadius: 8,
-              border: "1px solid #27272a",
-              textAlign: "center",
-            }}
-          >
-            <div style={{ fontSize: 48, marginBottom: 16 }}>🔌</div>
-            <div style={{ fontSize: 16, color: "#fafafa", marginBottom: 8 }}>
+        {connectors.length === 0 && (
+          <div className="card text-center py-16">
+            <div className="text-5xl mb-4">🔌</div>
+            <div className="text-lg text-text-primary font-semibold mb-2">
               No hay conectores configurados
             </div>
-            <div style={{ fontSize: 14, color: "#71717a", marginBottom: 20 }}>
-              Agrega tu primer conector para automatizar la ingesta de datos
+            <div className="text-sm text-text-muted">
+              Crea tu primer conector para automatizar la importación de datos
             </div>
-            <button
-              onClick={() => setShowAddConnector(true)}
-              style={{
-                padding: "10px 20px",
-                background: "#6366f1",
-                color: "#fff",
-                border: "none",
-                borderRadius: 6,
-                cursor: "pointer",
-                fontWeight: 500,
-                fontSize: 14,
-              }}
-            >
-              Agregar Primer Conector
-            </button>
           </div>
         )}
       </div>
-    </div>
-  );
-}
 
-function ConnectorCard({ connector, onToggle, onTest, onDelete }) {
-  const statusColors = {
-    active: { bg: "#1a231e", color: "#a7f3d0", border: "#273830" },
-    error: { bg: "#261a1a", color: "#fca5a5", border: "#3a2626" },
-    inactive: { bg: "#1a1d28", color: "#c7d2fe", border: "#272a38" },
-  };
+      {showModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-dark-card border border-dark-border rounded-xl p-8 max-w-md w-full mx-4">
+            <h2 className="text-2xl font-bold text-text-primary mb-6">
+              Nuevo Conector
+            </h2>
 
-  const style = statusColors[connector.status] || statusColors.inactive;
+            <div className="mb-5">
+              <label className="block text-sm font-medium text-text-secondary mb-2">
+                Tipo
+              </label>
+              <select
+                value={newConnector.type}
+                onChange={(e) =>
+                  setNewConnector({ ...newConnector, type: e.target.value })
+                }
+                className="input-field"
+              >
+                <option value="whatsapp">WhatsApp Business API</option>
+                <option value="instagram">Instagram</option>
+                <option value="facebook">Facebook</option>
+                <option value="gmail">Gmail</option>
+              </select>
+            </div>
 
-  return (
-    <div
-      style={{
-        background: "#18181b",
-        padding: 24,
-        borderRadius: 8,
-        border: "1px solid #27272a",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-      }}
-    >
-      <div style={{ flex: 1 }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            marginBottom: 12,
-          }}
-        >
-          <h3
-            style={{
-              margin: 0,
-              fontSize: 18,
-              color: "#ffffff",
-              fontWeight: 600,
-            }}
-          >
-            {connector.type.toUpperCase()} - {connector.name}
-          </h3>
-          <span
-            style={{
-              padding: "4px 10px",
-              borderRadius: 4,
-              fontSize: 11,
-              background: style.bg,
-              color: style.color,
-              border: `1px solid ${style.border}`,
-              fontWeight: 500,
-              textTransform: "capitalize",
-            }}
-          >
-            {connector.status}
-          </span>
-        </div>
+            <div className="mb-5">
+              <label className="block text-sm font-medium text-text-secondary mb-2">
+                Nombre
+              </label>
+              <input
+                type="text"
+                value={newConnector.name}
+                onChange={(e) =>
+                  setNewConnector({ ...newConnector, name: e.target.value })
+                }
+                className="input-field"
+                placeholder="Ej: WhatsApp Principal"
+              />
+            </div>
 
-        <div style={{ color: "#94a3b8", fontSize: 13, marginBottom: 12 }}>
-          Última sincronización:{" "}
-          {connector.last_sync
-            ? new Date(connector.last_sync).toLocaleString()
-            : "Nunca"}
-        </div>
+            <div className="mb-5">
+              <label className="block text-sm font-medium text-text-secondary mb-2">
+                API Key
+              </label>
+              <input
+                type="text"
+                value={newConnector.apiKey}
+                onChange={(e) =>
+                  setNewConnector({ ...newConnector, apiKey: e.target.value })
+                }
+                className="input-field"
+                placeholder="Tu clave de API"
+              />
+            </div>
 
-        <div style={{ display: "flex", gap: 16, fontSize: 13 }}>
-          <div>
-            <span style={{ color: "#71717a" }}>Frecuencia: </span>
-            <span style={{ color: "#d4d4d8" }}>{connector.frequency}</span>
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-text-secondary mb-2">
+                Frecuencia
+              </label>
+              <select
+                value={newConnector.frequency}
+                onChange={(e) =>
+                  setNewConnector({
+                    ...newConnector,
+                    frequency: e.target.value,
+                  })
+                }
+                className="input-field"
+              >
+                <option value="hourly">Cada hora</option>
+                <option value="daily">Diario</option>
+                <option value="weekly">Semanal</option>
+              </select>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleCreate}
+                disabled={!newConnector.name || !newConnector.apiKey}
+                className="btn-primary flex-1"
+              >
+                Crear Conector
+              </button>
+              <button
+                onClick={() => setShowModal(false)}
+                className="btn-secondary flex-1"
+              >
+                Cancelar
+              </button>
+            </div>
           </div>
-          <div>
-            <span style={{ color: "#71717a" }}>Mensajes importados: </span>
-            <span style={{ color: "#d4d4d8" }}>
-              {connector.total_messages || 0}
-            </span>
-          </div>
         </div>
-      </div>
-
-      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-        <button
-          onClick={onTest}
-          style={{
-            padding: "8px 16px",
-            background: "#27272a",
-            color: "#a1a1aa",
-            border: "none",
-            borderRadius: 6,
-            cursor: "pointer",
-            fontSize: 13,
-            fontWeight: 500,
-          }}
-        >
-          Probar
-        </button>
-
-        <button
-          onClick={onDelete}
-          style={{
-            padding: "8px 16px",
-            background: "#261a1a",
-            color: "#fca5a5",
-            border: "1px solid #3a2626",
-            borderRadius: 6,
-            cursor: "pointer",
-            fontSize: 13,
-            fontWeight: 500,
-          }}
-        >
-          Eliminar
-        </button>
-
-        <label
-          style={{ display: "flex", alignItems: "center", cursor: "pointer" }}
-        >
-          <input
-            type="checkbox"
-            checked={connector.enabled}
-            onChange={(e) => onToggle(e.target.checked)}
-            style={{ width: 18, height: 18, cursor: "pointer" }}
-          />
-          <span style={{ marginLeft: 8, color: "#d4d4d8", fontSize: 13 }}>
-            {connector.enabled ? "Activo" : "Inactivo"}
-          </span>
-        </label>
-      </div>
-    </div>
-  );
-}
-
-function AddConnectorForm({ client, onClose, onSuccess }) {
-  const [type, setType] = useState("whatsapp");
-  const [name, setName] = useState("");
-  const [apiKey, setApiKey] = useState("");
-  const [frequency, setFrequency] = useState("hourly");
-  const [submitting, setSubmitting] = useState(false);
-
-  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:4000";
-
-  const handleSubmit = async () => {
-    if (!name.trim() || !apiKey.trim()) {
-      alert("Por favor completa todos los campos");
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      await axios.post(`${apiUrl}/api/connectors`, {
-        clientId: client.id,
-        type,
-        name,
-        apiKey,
-        frequency,
-      });
-      onSuccess();
-    } catch (error) {
-      console.error("Error creating connector:", error);
-      alert("Error al crear conector");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div
-      style={{
-        background: "#18181b",
-        padding: 24,
-        borderRadius: 8,
-        border: "1px solid #27272a",
-        marginBottom: 24,
-      }}
-    >
-      <h3
-        style={{
-          marginTop: 0,
-          color: "#ffffff",
-          fontSize: 16,
-          marginBottom: 20,
-        }}
-      >
-        Agregar Nuevo Conector
-      </h3>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 16,
-          marginBottom: 16,
-        }}
-      >
-        <div>
-          <label
-            style={{
-              display: "block",
-              marginBottom: 8,
-              color: "#d4d4d8",
-              fontSize: 13,
-              fontWeight: 500,
-            }}
-          >
-            Tipo de Conector
-          </label>
-          <select
-            value={type}
-            onChange={(e) => setType(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "10px 12px",
-              borderRadius: 6,
-              border: "1px solid #27272a",
-              background: "#0d0d0d",
-              color: "#e4e4e7",
-              fontSize: 14,
-            }}
-          >
-            <option value="whatsapp">WhatsApp Business API</option>
-            <option value="instagram">Instagram / Meta API</option>
-            <option value="gmail">Gmail API</option>
-            <option value="facebook">Facebook Pages API</option>
-            <option value="google_reviews">Google My Business</option>
-          </select>
-        </div>
-
-        <div>
-          <label
-            style={{
-              display: "block",
-              marginBottom: 8,
-              color: "#d4d4d8",
-              fontSize: 13,
-              fontWeight: 500,
-            }}
-          >
-            Nombre del Conector
-          </label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Ej: WhatsApp Principal"
-            style={{
-              width: "100%",
-              padding: "10px 12px",
-              borderRadius: 6,
-              border: "1px solid #27272a",
-              background: "#0d0d0d",
-              color: "#e4e4e7",
-              fontSize: 14,
-            }}
-          />
-        </div>
-      </div>
-
-      <div style={{ marginBottom: 16 }}>
-        <label
-          style={{
-            display: "block",
-            marginBottom: 8,
-            color: "#d4d4d8",
-            fontSize: 13,
-            fontWeight: 500,
-          }}
-        >
-          API Key / Token
-        </label>
-        <input
-          type="password"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder="Pega aquí tu API key"
-          style={{
-            width: "100%",
-            padding: "10px 12px",
-            borderRadius: 6,
-            border: "1px solid #27272a",
-            background: "#0d0d0d",
-            color: "#e4e4e7",
-            fontSize: 14,
-          }}
-        />
-      </div>
-
-      <div style={{ marginBottom: 20 }}>
-        <label
-          style={{
-            display: "block",
-            marginBottom: 8,
-            color: "#d4d4d8",
-            fontSize: 13,
-            fontWeight: 500,
-          }}
-        >
-          Frecuencia de Sincronización
-        </label>
-        <select
-          value={frequency}
-          onChange={(e) => setFrequency(e.target.value)}
-          style={{
-            width: "100%",
-            padding: "10px 12px",
-            borderRadius: 6,
-            border: "1px solid #27272a",
-            background: "#0d0d0d",
-            color: "#e4e4e7",
-            fontSize: 14,
-          }}
-        >
-          <option value="realtime">Tiempo real</option>
-          <option value="hourly">Cada hora</option>
-          <option value="daily">Diario</option>
-          <option value="manual">Manual</option>
-        </select>
-      </div>
-
-      <div style={{ display: "flex", gap: 12 }}>
-        <button
-          onClick={handleSubmit}
-          disabled={submitting}
-          style={{
-            padding: "10px 20px",
-            background: submitting ? "#27272a" : "#10b981",
-            color: submitting ? "#71717a" : "#fff",
-            border: "none",
-            borderRadius: 6,
-            cursor: submitting ? "not-allowed" : "pointer",
-            fontWeight: 500,
-            fontSize: 14,
-          }}
-        >
-          {submitting ? "Creando..." : "Crear Conector"}
-        </button>
-        <button
-          onClick={onClose}
-          style={{
-            padding: "10px 20px",
-            background: "#27272a",
-            color: "#a1a1aa",
-            border: "none",
-            borderRadius: 6,
-            cursor: "pointer",
-            fontWeight: 500,
-            fontSize: 14,
-          }}
-        >
-          Cancelar
-        </button>
-      </div>
+      )}
     </div>
   );
 }

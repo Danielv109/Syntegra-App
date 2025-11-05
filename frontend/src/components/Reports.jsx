@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
 
 export default function Reports({ client }) {
@@ -8,7 +8,7 @@ export default function Reports({ client }) {
 
   useEffect(() => {
     loadReports();
-  }, [client]);
+  }, []);
 
   const loadReports = async () => {
     const res = await axios.get(`${apiUrl}/api/reports?clientId=${client.id}`);
@@ -40,9 +40,6 @@ export default function Reports({ client }) {
 
   const handleDownload = (reportId) => {
     const downloadUrl = `${apiUrl}/api/reports/download/${reportId}`;
-    console.log("Descargando desde:", downloadUrl);
-
-    // Crear elemento <a> temporal para forzar descarga
     const link = document.createElement("a");
     link.href = downloadUrl;
     link.download = `reporte_${reportId}.pdf`;
@@ -53,130 +50,56 @@ export default function Reports({ client }) {
 
   return (
     <div>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 32,
-        }}
-      >
+      <div className="flex justify-between items-center mb-8">
         <div>
-          <h1
-            style={{
-              fontSize: 28,
-              marginBottom: 6,
-              color: "#ffffff",
-              fontWeight: 600,
-            }}
-          >
+          <h1 className="text-3xl mb-2 text-text-primary font-bold">
             Reports - {client.name}
           </h1>
-          <p style={{ color: "#94a3b8", margin: 0, fontSize: 14 }}>
-            Genera reportes <span style={{ color: "#ef4444" }}>ejecutivos</span>{" "}
-            en PDF, listos para compartir.
+          <p className="text-text-muted text-sm">
+            Genera reportes{" "}
+            <span className="text-accent-error">ejecutivos</span> en PDF, listos
+            para compartir.
           </p>
         </div>
         <button
           onClick={generateReport}
           disabled={generating}
-          style={{
-            padding: "10px 20px",
-            background: generating ? "#27272a" : "#6366f1",
-            color: generating ? "#71717a" : "#fff",
-            border: "none",
-            borderRadius: 6,
-            cursor: generating ? "not-allowed" : "pointer",
-            fontWeight: 500,
-            fontSize: 14,
-            transition: "all 0.15s",
-          }}
+          className="btn-primary"
         >
           {generating ? "Generando..." : "Generar Reporte"}
         </button>
       </div>
 
-      <div style={{ display: "grid", gap: 16 }}>
+      <div className="flex flex-col gap-4">
         {reports.map((report) => (
           <div
             key={report.id}
-            style={{
-              background: "#18181b",
-              padding: 24,
-              borderRadius: 8,
-              border: "1px solid #27272a",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
+            className="card flex justify-between items-center"
           >
-            <div style={{ flex: 1 }}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  marginBottom: 8,
-                }}
-              >
-                <h3
-                  style={{
-                    margin: 0,
-                    fontSize: 18,
-                    color: "#ffffff",
-                    fontWeight: 600,
-                  }}
-                >
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-2">
+                <h3 className="text-lg text-text-primary font-medium">
                   {report.title}
                 </h3>
-                <span
-                  style={{
-                    padding: "4px 10px",
-                    borderRadius: 4,
-                    fontSize: 11,
-                    background: "#27272a",
-                    color: "#a1a1aa",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.3px",
-                    fontWeight: 500,
-                  }}
-                >
+                <span className="badge bg-dark-border text-text-muted border-dark-border uppercase text-[11px] tracking-wider font-semibold">
                   {report.type}
                 </span>
               </div>
-              <p
-                style={{
-                  color: "#94a3b8",
-                  margin: 0,
-                  fontSize: 14,
-                  marginBottom: 6,
-                }}
-              >
+              <p className="text-text-muted text-sm mb-1.5">
                 {report.filename || "Reporte generado"}
               </p>
-              <p
-                style={{
-                  color: "#71717a",
-                  margin: 0,
-                  fontSize: 12,
-                }}
-              >
+              <p className="text-text-disabled text-xs">
                 Generado: {new Date(report.created_at).toLocaleString()}
               </p>
             </div>
             <button
               onClick={() => handleDownload(report.id)}
-              style={{
-                padding: "10px 20px",
-                background: report.status === "ready" ? "#6366f1" : "#27272a",
-                color: report.status === "ready" ? "#fff" : "#71717a",
-                border: "none",
-                borderRadius: 6,
-                cursor: report.status === "ready" ? "pointer" : "not-allowed",
-                fontWeight: 500,
-                fontSize: 14,
-              }}
               disabled={report.status !== "ready"}
+              className={
+                report.status === "ready"
+                  ? "btn-primary"
+                  : "btn-secondary cursor-not-allowed"
+              }
             >
               {report.status === "ready" ? "Descargar PDF" : "Procesando..."}
             </button>
