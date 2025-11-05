@@ -6,12 +6,10 @@ const router = Router();
 router.get("/queue/:clientId", async (req, res) => {
   try {
     const { clientId } = req.params;
-
     const queueResult = await pool.query(
       "SELECT * FROM messages WHERE client_id = $1 AND requires_validation = true AND validated = false ORDER BY timestamp DESC LIMIT 50",
       [clientId]
     );
-
     const statsResult = await pool.query(
       "SELECT COUNT(*) as total, SUM(CASE WHEN validated = true THEN 1 ELSE 0 END) as validated, SUM(CASE WHEN validated = false THEN 1 ELSE 0 END) as pending FROM messages WHERE client_id = $1 AND requires_validation = true",
       [clientId]
@@ -33,21 +31,17 @@ router.get("/queue/:clientId", async (req, res) => {
 
 router.post("/validate", async (req, res) => {
   const client = await pool.connect();
-
   try {
     const { messageId, clientId, corrections } = req.body;
-
     await client.query("BEGIN");
 
     const originalMessage = await client.query(
       "SELECT * FROM messages WHERE id = $1",
       [messageId]
     );
-
     if (originalMessage.rows.length === 0) {
       throw new Error("Message not found");
     }
-
     const original = originalMessage.rows[0];
 
     await client.query(
@@ -56,7 +50,6 @@ router.post("/validate", async (req, res) => {
     );
 
     const finetuningId = "ft_" + Date.now();
-
     await client.query(
       "INSERT INTO finetuning_dataset (id, client_id, message_id, text, ai_sentiment, ai_topic, ai_intent, human_sentiment, human_topic, human_intent, corrected_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
       [
@@ -75,9 +68,7 @@ router.post("/validate", async (req, res) => {
     );
 
     await client.query("COMMIT");
-
-    console.log("Corrección guardada en fine-tuning dataset:", finetuningId);
-
+    console.log("Corrección guardada:", finetuningId);
     res.json({ success: true });
   } catch (error) {
     await client.query("ROLLBACK");
@@ -91,7 +82,6 @@ router.post("/validate", async (req, res) => {
 router.get("/finetuning-dataset/:clientId", async (req, res) => {
   try {
     const { clientId } = req.params;
-
     const result = await pool.query(
       "SELECT text, ai_sentiment, ai_topic, ai_intent, human_sentiment, human_topic, human_intent, corrected_at FROM finetuning_dataset WHERE client_id = $1 ORDER BY corrected_at DESC",
       [clientId]
@@ -99,7 +89,7 @@ router.get("/finetuning-dataset/:clientId", async (req, res) => {
 
     const dataset = result.rows.map((row) => ({
       messages: [
-        { role: "user", content: 'Clasifica este mensaje: "' + row.text + '"' },
+        { role: "user", content: "Clasifica: " + row.text },
         {
           role: "assistant",
           content: JSON.stringify({
