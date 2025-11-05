@@ -29,31 +29,14 @@ export default function Dashboard({ client }) {
 
   if (loading)
     return (
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "80vh",
-        }}
-      >
-        <div style={{ fontSize: 14, color: "#71717a" }}>
-          Cargando insights...
-        </div>
+      <div className="flex justify-center items-center h-[80vh]">
+        <div className="text-lg text-text-muted">Cargando insights...</div>
       </div>
     );
 
   if (error)
     return (
-      <div
-        style={{
-          padding: 24,
-          background: "#18181b",
-          borderRadius: 8,
-          color: "#fca5a5",
-          border: "1px solid #3f2528",
-        }}
-      >
+      <div className="p-6 bg-accent-error/10 rounded-lg text-accent-error border border-accent-error/20">
         Error al cargar datos: {error}
       </div>
     );
@@ -62,48 +45,28 @@ export default function Dashboard({ client }) {
 
   return (
     <div>
-      <header style={{ marginBottom: 32 }}>
-        <h1
-          style={{
-            fontSize: 28,
-            marginBottom: 6,
-            color: "#ffffff",
-            fontWeight: 600,
-          }}
-        >
+      <header className="mb-8">
+        <h1 className="text-3xl mb-2 text-text-primary font-bold">
           Dashboard - {client.name}
         </h1>
-        <p
-          style={{
-            color: "#94a3b8",
-            fontSize: 14,
-            fontWeight: 400,
-          }}
-        >
+        <p className="text-text-muted text-sm">
           Syntegra convierte{" "}
-          <span style={{ color: "#ef4444" }}>conversaciones</span> y datos
-          dispersos en <span style={{ color: "#10b981" }}>decisiones</span> que
-          impulsan tu negocio.
+          <span className="text-accent-error">conversaciones</span> y datos
+          dispersos en <span className="text-accent-success">decisiones</span>{" "}
+          que impulsan tu negocio.
         </p>
       </header>
 
       <KPIGrid kpis={insights.kpis} />
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "2fr 1fr",
-          gap: 16,
-          marginTop: 24,
-        }}
-      >
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div className="grid grid-cols-[2fr_1fr] gap-4 mt-6">
+        <div className="flex flex-col gap-4">
           <SentimentChart data={insights.sentimentByChannel} />
           <TopicsPanel topics={insights.topics} />
           <ActionsPanel actions={insights.actions} />
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div className="flex flex-col gap-4">
           <AlertsPanel alerts={insights.alerts} />
           <PredictivePanel predictive={insights.predictive} />
         </div>

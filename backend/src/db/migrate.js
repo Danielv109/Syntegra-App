@@ -53,20 +53,7 @@ async function migrate() {
       );
     `);
 
-    // Tabla de reportes
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS reports (
-        id VARCHAR(50) PRIMARY KEY,
-        client_id VARCHAR(50) REFERENCES clients(id),
-        title VARCHAR(255),
-        type VARCHAR(50),
-        filename VARCHAR(255),
-        status VARCHAR(20) DEFAULT 'processing',
-        created_at TIMESTAMP DEFAULT NOW()
-      );
-    `);
-
-    // Tabla de trabajos (Job Queue)
+    // Tabla de trabajos con reintentos
     await client.query(`
       CREATE TABLE IF NOT EXISTS jobs (
         id VARCHAR(50) PRIMARY KEY,
@@ -76,14 +63,18 @@ async function migrate() {
         status VARCHAR(20) DEFAULT 'pending',
         total_records INTEGER DEFAULT 0,
         processed_records INTEGER DEFAULT 0,
+        retry_count INTEGER DEFAULT 0,
+        max_retries INTEGER DEFAULT 3,
+        last_error TEXT,
         error_message TEXT,
         created_at TIMESTAMP DEFAULT NOW(),
         started_at TIMESTAMP,
-        completed_at TIMESTAMP
+        completed_at TIMESTAMP,
+        next_retry_at TIMESTAMP
       );
     `);
 
-    // Tabla de dataset para fine-tuning (base de datos de oro)
+    // Tabla de dataset para fine-tuning
     await client.query(`
       CREATE TABLE IF NOT EXISTS finetuning_dataset (
         id VARCHAR(50) PRIMARY KEY,
@@ -101,7 +92,81 @@ async function migrate() {
       );
     `);
 
-    // Índices para rendimiento
+    // Tabla de reportes
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS reports (
+        id VARCHAR(50) PRIMARY KEY,
+        client_id VARCHAR(50) REFERENCES clients(id),
+        title VARCHAR(255),
+        type VARCHAR(50),
+        filename VARCHAR(255),
+        status VARCHAR(20) DEFAULT 'processing',
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    // Tabla de configuraciones por cliente
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS client_settings (
+        id SERIAL PRIMARY KEY,
+        client_id VARCHAR(50) REFERENCES clients(id) UNIQUE,
+        notifications JSONB DEFAULT '{"email": false, "slack": false}',
+        processing JSONB DEFAULT '{"autoClassify": true, "humanValidation": false}',
+        integrations JSONB DEFAULT '{}',
+        theme JSONB DEFAULT '{"mode": "dark"}',
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    // TABLAS DE RESUMEN PARA ANALÍTICAS (RENDIMIENTO)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS daily_analytics (
+        id SERIAL PRIMARY KEY,
+        client_id VARCHAR(50) REFERENCES clients(id),
+        date DATE NOT NULL,
+        channel VARCHAR(50),
+        total_messages INTEGER DEFAULT 0,
+        positive_count INTEGER DEFAULT 0,
+        neutral_count INTEGER DEFAULT 0,
+        negative_count INTEGER DEFAULT 0,
+        avg_sentiment_score NUMERIC(5,2),
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(client_id, date, channel)
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS topic_summary (
+        id SERIAL PRIMARY KEY,
+        client_id VARCHAR(50) REFERENCES clients(id),
+        topic VARCHAR(100) NOT NULL,
+        total_count INTEGER DEFAULT 0,
+        positive_count INTEGER DEFAULT 0,
+        negative_count INTEGER DEFAULT 0,
+        last_7_days_count INTEGER DEFAULT 0,
+        last_30_days_count INTEGER DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(client_id, topic)
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS channel_summary (
+        id SERIAL PRIMARY KEY,
+        client_id VARCHAR(50) REFERENCES clients(id),
+        channel VARCHAR(50) NOT NULL,
+        total_messages INTEGER DEFAULT 0,
+        positive_count INTEGER DEFAULT 0,
+        neutral_count INTEGER DEFAULT 0,
+        negative_count INTEGER DEFAULT 0,
+        avg_response_time_hours NUMERIC(10,2),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(client_id, channel)
+      );
+    `);
+
+    // Índices para mejor rendimiento
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_messages_client ON messages(client_id);
       CREATE INDEX IF NOT EXISTS idx_messages_sentiment ON messages(sentiment);
@@ -109,7 +174,11 @@ async function migrate() {
       CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
       CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
       CREATE INDEX IF NOT EXISTS idx_jobs_client ON jobs(client_id);
+      CREATE INDEX IF NOT EXISTS idx_jobs_retry ON jobs(status, next_retry_at);
       CREATE INDEX IF NOT EXISTS idx_finetuning_client ON finetuning_dataset(client_id);
+      CREATE INDEX IF NOT EXISTS idx_daily_analytics_client_date ON daily_analytics(client_id, date);
+      CREATE INDEX IF NOT EXISTS idx_topic_summary_client ON topic_summary(client_id);
+      CREATE INDEX IF NOT EXISTS idx_channel_summary_client ON channel_summary(client_id);
     `);
 
     console.log("✅ Migrations completed successfully");

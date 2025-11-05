@@ -2,58 +2,18 @@ import React from "react";
 
 const menuItems = [
   "Dashboard",
-  "Validation",
-  "Data Explorer",
   "Data Import",
-  "Connectors",
   "Analytics",
   "Reports",
   "Settings",
 ];
 
-export default function Layout({
-  children,
-  currentPage,
-  onNavigate,
-  selectedClient,
-  onBackToClients,
-}) {
-  if (!selectedClient) {
-    return (
-      <div
-        style={{
-          minHeight: "100vh",
-          background: "#0d0d0d",
-          padding: "40px 48px",
-        }}
-      >
-        {children}
-      </div>
-    );
-  }
-
+export default function Layout({ children, currentPage, onNavigate }) {
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "#0d0d0d" }}>
-      <aside
-        style={{
-          width: 220,
-          background: "transparent",
-          padding: "40px 20px 32px 20px",
-          display: "flex",
-          flexDirection: "column",
-          gap: 24,
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            paddingLeft: 8,
-            marginBottom: 8,
-          }}
-        >
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+    <div className="flex min-h-screen bg-dark-bg">
+      <aside className="w-[220px] bg-transparent p-8 flex flex-col gap-6">
+        <div className="flex items-center gap-2.5 pl-2 mb-2">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
             <path
               d="M12 2L2 7L12 12L22 7L12 2Z"
               fill="url(#gradient1)"
@@ -82,134 +42,34 @@ export default function Layout({
               </linearGradient>
             </defs>
           </svg>
-          <div
-            style={{
-              fontSize: 22,
-              fontWeight: 600,
-              color: "#fafafa",
-              letterSpacing: "-0.4px",
-            }}
-          >
+          <div className="text-lg font-semibold text-text-primary tracking-tight">
             Syntegra
           </div>
         </div>
 
-        <div
-          style={{
-            background: "#18181b",
-            borderRadius: 12,
-            border: "1px solid #27272a",
-            padding: "20px 16px",
-          }}
-        >
-          <div
-            onClick={onBackToClients}
-            style={{
-              padding: "10px 12px",
-              borderRadius: 6,
-              background: "#27272a",
-              marginBottom: 16,
-              cursor: "pointer",
-              transition: "all 0.15s",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "#3f3f46";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "#27272a";
-            }}
-          >
-            <div
-              style={{
-                fontSize: 11,
-                color: "#71717a",
-                marginBottom: 4,
-                textTransform: "uppercase",
-                letterSpacing: "0.3px",
-              }}
-            >
-              Cliente Actual
-            </div>
-            <div
-              style={{
-                fontSize: 14,
-                color: "#fafafa",
-                fontWeight: 500,
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-              }}
-            >
-              <span>←</span>
-              <span
-                style={{
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
+        <nav>
+          <ul className="flex flex-col gap-0.5 list-none p-0 m-0">
+            {menuItems.map((item) => (
+              <li
+                key={item}
+                onClick={() => onNavigate(item)}
+                className={`
+                  px-3 py-2.5 rounded-md cursor-pointer text-sm transition-all
+                  ${
+                    currentPage === item
+                      ? "bg-dark-hover text-text-primary font-medium border-l-[3px] border-accent-primary"
+                      : "text-text-muted hover:bg-dark-hover hover:text-text-secondary border-l-[3px] border-transparent"
+                  }
+                `}
               >
-                {selectedClient.name}
-              </span>
-            </div>
-          </div>
-
-          <nav>
-            <ul
-              style={{
-                listStyle: "none",
-                padding: 0,
-                margin: 0,
-                display: "flex",
-                flexDirection: "column",
-                gap: 2,
-              }}
-            >
-              {menuItems.map((item) => (
-                <li
-                  key={item}
-                  onClick={() => onNavigate(item)}
-                  style={{
-                    padding: "9px 12px",
-                    borderRadius: 6,
-                    cursor: "pointer",
-                    background:
-                      currentPage === item ? "#27272a" : "transparent",
-                    color: currentPage === item ? "#fafafa" : "#a1a1aa",
-                    fontWeight: currentPage === item ? 500 : 400,
-                    fontSize: 14,
-                    transition: "all 0.12s ease",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (currentPage !== item) {
-                      e.currentTarget.style.background = "#1f1f23";
-                      e.currentTarget.style.color = "#d4d4d8";
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (currentPage !== item) {
-                      e.currentTarget.style.background = "transparent";
-                      e.currentTarget.style.color = "#a1a1aa";
-                    }
-                  }}
-                >
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </nav>
-        </div>
+                {item}
+              </li>
+            ))}
+          </ul>
+        </nav>
       </aside>
 
-      <main
-        style={{
-          flex: 1,
-          padding: "40px 48px",
-          background: "#0d0d0d",
-          maxWidth: "1600px",
-        }}
-      >
-        {children}
-      </main>
+      <main className="flex-1 p-10 bg-dark-bg max-w-[1600px]">{children}</main>
     </div>
   );
 }

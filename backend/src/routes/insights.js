@@ -12,20 +12,14 @@ router.get("/", async (req, res) => {
       return res.status(400).json({ error: "clientId is required" });
     }
 
-    // Obtener estadísticas reales de la base de datos
-    const messagesResult = await pool.query(
-      "SELECT COUNT(*) as total, sentiment, topic FROM messages WHERE client_id = $1 GROUP BY sentiment, topic",
-      [clientId]
-    );
-
+    // Usar tablas de resumen en lugar de consultas pesadas
     const totalMessages = await pool.query(
-      "SELECT COUNT(*) as count FROM messages WHERE client_id = $1",
+      "SELECT SUM(total_messages) as total FROM channel_summary WHERE client_id = $1",
       [clientId]
     );
 
-    const total = parseInt(totalMessages.rows[0]?.count || 0);
+    const total = parseInt(totalMessages.rows[0]?.total || 0);
 
-    // Si no hay mensajes, devolver estructura vacía
     if (total === 0) {
       return res.json({
         kpis: [
@@ -57,37 +51,37 @@ router.get("/", async (req, res) => {
       });
     }
 
-    // Calcular métricas reales
-    const sentimentByChannelResult = await pool.query(
+    // Sentimiento por canal (desde tabla de resumen)
+    const sentimentByChannel = await pool.query(
       `SELECT 
         channel,
-        COUNT(CASE WHEN sentiment = 'positive' THEN 1 END) as positive,
-        COUNT(CASE WHEN sentiment = 'neutral' THEN 1 END) as neutral,
-        COUNT(CASE WHEN sentiment = 'negative' THEN 1 END) as negative
-       FROM messages 
-       WHERE client_id = $1 
-       GROUP BY channel`,
+        positive_count as positive,
+        neutral_count as neutral,
+        negative_count as negative
+       FROM channel_summary
+       WHERE client_id = $1`,
       [clientId]
     );
 
-    const topicsResult = await pool.query(
+    // Topics (desde tabla de resumen)
+    const topics = await pool.query(
       `SELECT 
         topic,
-        COUNT(*) as count,
+        total_count as count,
         CASE 
-          WHEN AVG(CASE WHEN sentiment = 'positive' THEN 1 WHEN sentiment = 'negative' THEN -1 ELSE 0 END) > 0.3 THEN 'positive'
-          WHEN AVG(CASE WHEN sentiment = 'positive' THEN 1 WHEN sentiment = 'negative' THEN -1 ELSE 0 END) < -0.3 THEN 'negative'
+          WHEN positive_count > negative_count THEN 'positive'
+          WHEN negative_count > positive_count THEN 'negative'
           ELSE 'neutral'
         END as sentiment
-       FROM messages 
-       WHERE client_id = $1 
-       GROUP BY topic 
-       ORDER BY count DESC 
+       FROM topic_summary
+       WHERE client_id = $1
+       ORDER BY total_count DESC
        LIMIT 5`,
       [clientId]
     );
 
-    const criticalComplaintsResult = await pool.query(
+    // Quejas críticas (solo esta requiere query directa, pero es rápida con índices)
+    const criticalComplaints = await pool.query(
       `SELECT COUNT(*) as count 
        FROM messages 
        WHERE client_id = $1 
@@ -96,18 +90,19 @@ router.get("/", async (req, res) => {
       [clientId]
     );
 
+    // Tasa positiva (cálculo desde resumen)
     const positiveRate = await pool.query(
       `SELECT 
-        ROUND(COUNT(CASE WHEN sentiment = 'positive' THEN 1 END)::numeric / COUNT(*)::numeric * 100, 0) as rate
-       FROM messages 
+        ROUND((SUM(positive_count)::numeric / NULLIF(SUM(total_messages), 0)::numeric) * 100, 0) as rate
+       FROM channel_summary
        WHERE client_id = $1`,
       [clientId]
     );
 
-    // Generar alertas inteligentes
+    // Generar alertas
     const alerts = await generateAlerts(clientId);
 
-    const insights = {
+    res.json({
       kpis: [
         {
           label: "Clientes analizados",
@@ -117,7 +112,7 @@ router.get("/", async (req, res) => {
         },
         {
           label: "Quejas críticas",
-          value: criticalComplaintsResult.rows[0]?.count || "0",
+          value: criticalComplaints.rows[0]?.count || "0",
           delta: null,
           trend: "down",
         },
@@ -135,23 +130,21 @@ router.get("/", async (req, res) => {
             parseInt(positiveRate.rows[0]?.rate || 0) >= 60 ? "up" : "down",
         },
       ],
-      sentimentByChannel: sentimentByChannelResult.rows.map((row) => ({
+      sentimentByChannel: sentimentByChannel.rows.map((row) => ({
         channel: row.channel,
         positive: parseInt(row.positive),
         neutral: parseInt(row.neutral),
         negative: parseInt(row.negative),
       })),
-      topics: topicsResult.rows.map((row) => ({
+      topics: topics.rows.map((row) => ({
         topic: row.topic,
         count: parseInt(row.count),
         sentiment: row.sentiment,
       })),
-      alerts: alerts, // Alertas generadas dinámicamente
+      alerts,
       predictive: [],
       actions: [],
-    };
-
-    res.json(insights);
+    });
   } catch (error) {
     console.error("Error fetching insights:", error);
     res.status(500).json({ error: "Failed to fetch insights" });

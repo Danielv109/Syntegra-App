@@ -2,59 +2,29 @@ import React from "react";
 
 export default function KPIGrid({ kpis }) {
   return (
-    <div
-      style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16 }}
-    >
+    <div className="grid grid-cols-4 gap-4">
       {kpis.map((kpi, i) => (
         <div
           key={i}
-          style={{
-            background: "#18181b",
-            padding: "20px 24px",
-            borderRadius: 8,
-            border: "1px solid #27272a",
-          }}
+          className="card transition-all hover:bg-dark-hover hover:border-dark-border"
         >
-          <div
-            style={{
-              fontSize: 12,
-              color: "#71717a",
-              marginBottom: 10,
-              fontWeight: 500,
-              textTransform: "uppercase",
-              letterSpacing: "0.3px",
-            }}
-          >
+          <div className="text-xs text-text-disabled mb-2 uppercase tracking-wider font-medium">
             {kpi.label}
           </div>
-          <div
-            style={{
-              fontSize: 32,
-              fontWeight: 600,
-              marginBottom: 8,
-              color: "#fafafa",
-              lineHeight: 1,
-            }}
-          >
+          <div className="text-[32px] font-bold mb-1.5 text-text-primary leading-none">
             {kpi.value}
           </div>
           {kpi.delta && (
             <div
-              style={{
-                fontSize: 13,
-                color:
-                  kpi.trend === "up"
-                    ? "#10b981"
-                    : kpi.trend === "down"
-                    ? "#ef4444"
-                    : "#94a3b8",
-                display: "flex",
-                alignItems: "center",
-                gap: 4,
-                fontWeight: 500,
-              }}
+              className={`text-sm flex items-center gap-1 font-medium ${
+                kpi.trend === "up"
+                  ? "text-accent-success"
+                  : kpi.trend === "down"
+                  ? "text-accent-error"
+                  : "text-text-disabled"
+              }`}
             >
-              <span style={{ fontSize: 11 }}>
+              <span className="text-xs">
                 {kpi.trend === "up" ? "↑" : kpi.trend === "down" ? "↓" : "→"}
               </span>
               <span>{kpi.delta}</span>

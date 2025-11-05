@@ -94,72 +94,28 @@ export default function DataImport({ client }) {
 
   return (
     <div>
-      <h1
-        style={{
-          fontSize: 28,
-          marginBottom: 6,
-          color: "#ffffff",
-          fontWeight: 600,
-        }}
-      >
+      <h1 className="text-3xl mb-2 text-text-primary font-bold">
         Data Import - {client.name}
       </h1>
-      <p style={{ color: "#94a3b8", marginBottom: 32, fontSize: 14 }}>
+      <p className="text-text-muted mb-8 text-sm">
         Sube archivos CSV. El procesamiento se realiza en segundo plano por el
         sistema de colas.
       </p>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "2fr 1fr",
-          gap: 24,
-        }}
-      >
-        <div
-          style={{
-            background: "#18181b",
-            padding: 24,
-            borderRadius: 8,
-            border: "1px solid #27272a",
-          }}
-        >
-          <h3
-            style={{
-              marginTop: 0,
-              color: "#ffffff",
-              fontSize: 15,
-              fontWeight: 600,
-              marginBottom: 20,
-            }}
-          >
+      <div className="grid grid-cols-[2fr_1fr] gap-6">
+        <div className="card">
+          <h3 className="mt-0 text-text-primary text-[15px] font-semibold mb-5">
             Subir archivo
           </h3>
 
-          <div style={{ marginBottom: 20 }}>
-            <label
-              style={{
-                display: "block",
-                marginBottom: 8,
-                fontWeight: 500,
-                color: "#d4d4d8",
-                fontSize: 13,
-              }}
-            >
+          <div className="mb-5">
+            <label className="block mb-2 font-medium text-text-secondary text-[13px]">
               Canal
             </label>
             <select
               value={channel}
               onChange={(e) => setChannel(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                borderRadius: 6,
-                border: "1px solid #27272a",
-                fontSize: 14,
-                background: "#0d0d0d",
-                color: "#d4d4d8",
-              }}
+              className="input-field"
             >
               <option value="whatsapp">WhatsApp</option>
               <option value="instagram">Instagram</option>
@@ -168,49 +124,22 @@ export default function DataImport({ client }) {
             </select>
           </div>
 
-          <div style={{ marginBottom: 20 }}>
-            <label
-              style={{
-                display: "block",
-                marginBottom: 8,
-                fontWeight: 500,
-                color: "#d4d4d8",
-                fontSize: 13,
-              }}
-            >
+          <div className="mb-5">
+            <label className="block mb-2 font-medium text-text-secondary text-[13px]">
               Archivo CSV
             </label>
             <input
               type="file"
               accept=".csv"
               onChange={(e) => setFile(e.target.files?.[0] || null)}
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                borderRadius: 6,
-                border: "1px solid #27272a",
-                background: "#0d0d0d",
-                color: "#d4d4d8",
-                fontSize: 13,
-              }}
+              className="input-field text-[13px]"
             />
           </div>
 
           <button
             onClick={handleUpload}
             disabled={uploading || !file || currentJobId}
-            style={{
-              padding: "10px 20px",
-              background:
-                uploading || !file || currentJobId ? "#27272a" : "#6366f1",
-              color: uploading || !file || currentJobId ? "#71717a" : "#fff",
-              border: "none",
-              borderRadius: 6,
-              cursor:
-                uploading || !file || currentJobId ? "not-allowed" : "pointer",
-              fontWeight: 500,
-              fontSize: 14,
-            }}
+            className="btn-primary"
           >
             {uploading
               ? "Subiendo..."
@@ -219,51 +148,21 @@ export default function DataImport({ client }) {
               : "Subir archivo"}
           </button>
 
-          {/* Barra de progreso */}
           {jobProgress && (
-            <div style={{ marginTop: 20 }}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  marginBottom: 8,
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: 13,
-                    color: "#d4d4d8",
-                  }}
-                >
+            <div className="mt-5">
+              <div className="flex justify-between mb-2">
+                <span className="text-[13px] text-text-secondary">
                   Procesando: {jobProgress.processedRecords}/
                   {jobProgress.totalRecords} mensajes
                 </span>
-                <span
-                  style={{
-                    fontSize: 13,
-                    color: "#6366f1",
-                    fontWeight: 600,
-                  }}
-                >
+                <span className="text-[13px] text-accent-primary font-semibold">
                   {jobProgress.progress}%
                 </span>
               </div>
-              <div
-                style={{
-                  width: "100%",
-                  height: 8,
-                  background: "#27272a",
-                  borderRadius: 4,
-                  overflow: "hidden",
-                }}
-              >
+              <div className="w-full h-2 bg-dark-border rounded overflow-hidden">
                 <div
-                  style={{
-                    width: `${jobProgress.progress}%`,
-                    height: "100%",
-                    background: "linear-gradient(90deg, #6366f1, #8b5cf6)",
-                    transition: "width 0.3s ease",
-                  }}
+                  className="h-full bg-gradient-to-r from-accent-primary to-accent-secondary transition-all duration-300"
+                  style={{ width: `${jobProgress.progress}%` }}
                 />
               </div>
             </div>
@@ -271,54 +170,22 @@ export default function DataImport({ client }) {
 
           {message && (
             <div
-              style={{
-                marginTop: 16,
-                padding: "12px 16px",
-                borderRadius: 6,
-                background: message.startsWith("✅") ? "#1a231e" : "#261a1a",
-                color: message.startsWith("✅") ? "#a7f3d0" : "#fca5a5",
-                border: `1px solid ${
-                  message.startsWith("✅") ? "#273830" : "#3a2626"
-                }`,
-                fontSize: 13,
-              }}
+              className={`mt-4 px-4 py-3 rounded-md text-[13px] ${
+                message.startsWith("✅")
+                  ? "bg-accent-success/10 text-accent-success border border-accent-success/20"
+                  : "bg-accent-error/10 text-accent-error border border-accent-error/20"
+              }`}
             >
               {message}
             </div>
           )}
         </div>
 
-        <div
-          style={{
-            background: "#18181b",
-            padding: 24,
-            borderRadius: 8,
-            border: "1px solid #27272a",
-          }}
-        >
-          <h3
-            style={{
-              marginTop: 0,
-              color: "#ffffff",
-              fontSize: 15,
-              fontWeight: 600,
-              marginBottom: 16,
-            }}
-          >
+        <div className="card">
+          <h3 className="mt-0 text-text-primary text-[15px] font-semibold mb-4">
             Ejemplo de CSV
           </h3>
-          <pre
-            style={{
-              background: "#0d0d0d",
-              padding: 16,
-              borderRadius: 6,
-              fontSize: 12,
-              overflow: "auto",
-              color: "#a1a1aa",
-              border: "1px solid #27272a",
-              lineHeight: 1.6,
-            }}
-          >
+          <pre className="bg-dark-bg p-4 rounded-md text-xs overflow-auto text-text-muted border border-dark-border leading-relaxed">
             {`text,timestamp,channel
 Muy buen servicio,2025-01-01,whatsapp
 El producto llegó tarde,2025-01-02,whatsapp
@@ -327,84 +194,18 @@ Excelente calidad,2025-01-03,email`}
         </div>
       </div>
 
-      <div
-        style={{
-          marginTop: 24,
-          background: "#18181b",
-          padding: 24,
-          borderRadius: 8,
-          border: "1px solid #27272a",
-        }}
-      >
-        <h3
-          style={{
-            marginTop: 0,
-            color: "#ffffff",
-            fontSize: 15,
-            fontWeight: 600,
-            marginBottom: 20,
-          }}
-        >
+      <div className="card mt-6">
+        <h3 className="mt-0 text-text-primary text-[15px] font-semibold mb-5">
           Historial de cargas
         </h3>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <table className="w-full border-collapse">
           <thead>
-            <tr style={{ borderBottom: "1px solid #27272a" }}>
-              <th
-                style={{
-                  textAlign: "left",
-                  padding: "12px 0",
-                  color: "#71717a",
-                  fontWeight: 500,
-                  fontSize: 12,
-                }}
-              >
-                Archivo
-              </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  padding: "12px 0",
-                  color: "#71717a",
-                  fontWeight: 500,
-                  fontSize: 12,
-                }}
-              >
-                Total
-              </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  padding: "12px 0",
-                  color: "#71717a",
-                  fontWeight: 500,
-                  fontSize: 12,
-                }}
-              >
-                Procesados
-              </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  padding: "12px 0",
-                  color: "#71717a",
-                  fontWeight: 500,
-                  fontSize: 12,
-                }}
-              >
-                Estado
-              </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  padding: "12px 0",
-                  color: "#71717a",
-                  fontWeight: 500,
-                  fontSize: 12,
-                }}
-              >
-                Fecha
-              </th>
+            <tr className="border-b border-dark-border">
+              <th className="table-header">Archivo</th>
+              <th className="table-header">Total</th>
+              <th className="table-header">Procesados</th>
+              <th className="table-header">Estado</th>
+              <th className="table-header">Fecha</th>
             </tr>
           </thead>
           <tbody>
@@ -412,94 +213,39 @@ Excelente calidad,2025-01-03,email`}
               <tr>
                 <td
                   colSpan={5}
-                  style={{
-                    padding: 40,
-                    textAlign: "center",
-                    color: "#71717a",
-                    fontSize: 13,
-                  }}
+                  className="py-10 text-center text-text-disabled text-[13px]"
                 >
                   No hay cargas recientes
                 </td>
               </tr>
             ) : (
               history.map((item) => (
-                <tr
-                  key={item.jobId}
-                  style={{ borderBottom: "1px solid #27272a" }}
-                >
-                  <td
-                    style={{
-                      padding: "14px 0",
-                      color: "#d4d4d8",
-                      fontSize: 13,
-                    }}
-                  >
+                <tr key={item.jobId} className="table-row">
+                  <td className="py-3.5 text-text-secondary text-[13px]">
                     {item.filename}
                   </td>
-                  <td
-                    style={{
-                      padding: "14px 0",
-                      color: "#d4d4d8",
-                      fontSize: 13,
-                    }}
-                  >
+                  <td className="py-3.5 text-text-secondary text-[13px]">
                     {item.recordCount}
                   </td>
-                  <td
-                    style={{
-                      padding: "14px 0",
-                      color: "#d4d4d8",
-                      fontSize: 13,
-                    }}
-                  >
+                  <td className="py-3.5 text-text-secondary text-[13px]">
                     {item.processedCount}
                   </td>
-                  <td style={{ padding: "14px 0" }}>
+                  <td className="py-3.5">
                     <span
-                      style={{
-                        padding: "4px 10px",
-                        borderRadius: 4,
-                        fontSize: 11,
-                        background:
-                          item.status === "completed"
-                            ? "#1a231e"
-                            : item.status === "processing"
-                            ? "#1e1a15"
-                            : item.status === "failed"
-                            ? "#261a1a"
-                            : "#1a1d28",
-                        color:
-                          item.status === "completed"
-                            ? "#a7f3d0"
-                            : item.status === "processing"
-                            ? "#fcd34d"
-                            : item.status === "failed"
-                            ? "#fca5a5"
-                            : "#c7d2fe",
-                        border: `1px solid ${
-                          item.status === "completed"
-                            ? "#273830"
-                            : item.status === "processing"
-                            ? "#3a3226"
-                            : item.status === "failed"
-                            ? "#3a2626"
-                            : "#272a38"
-                        }`,
-                        fontWeight: 500,
-                        textTransform: "capitalize",
-                      }}
+                      className={`badge capitalize font-medium ${
+                        item.status === "completed"
+                          ? "badge-success"
+                          : item.status === "processing"
+                          ? "badge-warning"
+                          : item.status === "failed"
+                          ? "badge-error"
+                          : "bg-dark-border text-text-muted border border-dark-border"
+                      }`}
                     >
                       {item.status}
                     </span>
                   </td>
-                  <td
-                    style={{
-                      padding: "14px 0",
-                      fontSize: 12,
-                      color: "#71717a",
-                    }}
-                  >
+                  <td className="py-3.5 text-xs text-text-disabled">
                     {new Date(item.createdAt).toLocaleString()}
                   </td>
                 </tr>

@@ -1,35 +1,80 @@
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply box-border;
+  }
+
+  body {
+    @apply m-0 font-sans antialiased bg-dark-bg text-text-secondary;
+    font-family: "Inter", system-ui, -apple-system, sans-serif;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply m-0 font-semibold text-text-primary;
+  }
+
+  ul,
+  ol {
+    @apply m-0;
+  }
+
+  button {
+    @apply font-sans;
+  }
+
+  input,
+  select,
+  textarea {
+    @apply font-sans;
+  }
 }
-body {
-  margin: 0;
-  font-family: "Inter", system-ui, -apple-system, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  background: #0d0d0d;
-  color: #e4e4e7;
-}
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
-  margin: 0;
-  font-weight: 600;
-  color: #fafafa;
-}
-ul,
-ol {
-  margin: 0;
-}
-button {
-  font-family: inherit;
-}
-input,
-select,
-textarea {
-  font-family: inherit;
+
+@layer components {
+  .card {
+    @apply bg-dark-card p-6 rounded-lg border border-dark-border;
+  }
+
+  .btn-primary {
+    @apply px-5 py-2.5 bg-accent-primary text-white border-0 rounded-md cursor-pointer font-medium text-sm transition-all hover:bg-accent-secondary disabled:bg-dark-border disabled:text-text-disabled disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply px-5 py-2.5 bg-dark-border text-text-muted border-0 rounded-md cursor-pointer font-medium text-sm transition-all hover:bg-dark-hover;
+  }
+
+  .input-field {
+    @apply w-full px-3 py-2.5 rounded-md border border-dark-border text-sm bg-dark-bg text-text-secondary;
+  }
+
+  .table-header {
+    @apply text-left py-3 text-text-disabled font-medium text-xs;
+  }
+
+  .table-row {
+    @apply border-b border-dark-border;
+  }
+
+  .badge {
+    @apply px-2.5 py-1 rounded text-xs font-medium;
+  }
+
+  .badge-success {
+    @apply badge bg-accent-success/10 text-accent-success border border-accent-success/20;
+  }
+
+  .badge-warning {
+    @apply badge bg-accent-warning/10 text-accent-warning border border-accent-warning/20;
+  }
+
+  .badge-error {
+    @apply badge bg-accent-error/10 text-accent-error border border-accent-error/20;
+  }
 }
