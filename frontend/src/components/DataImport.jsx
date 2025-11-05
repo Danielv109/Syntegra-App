@@ -75,7 +75,7 @@ export default function DataImport({ client }) {
 
   const handleUpload = async () => {
     if (!file) {
-      setMessage("Por favor selecciona un archivo");
+      alert("Por favor selecciona un archivo");
       return;
     }
 
@@ -87,10 +87,10 @@ export default function DataImport({ client }) {
       // Crear FormData y enviar archivo binario
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("clientId", client.id);
-      formData.append("channel", channel);
+      formData.append("clientId", client.id); // IMPORTANTE: Enviar clientId
+      formData.append("channel", channel || "csv");
 
-      console.log("📤 Subiendo archivo:", file.name);
+      console.log("📤 Subiendo archivo con clientId:", client.id);
 
       const res = await axios.post(`${apiUrl}/api/upload`, formData, {
         headers: {
@@ -98,15 +98,15 @@ export default function DataImport({ client }) {
         },
       });
 
-      console.log("✅ Respuesta del servidor:", res.data);
+      console.log("✅ Upload exitoso:", res.data);
 
-      setMessage(`✅ ${res.data.message}`);
       setCurrentJobId(res.data.jobId);
       setFile(null);
     } catch (error) {
+      console.error("❌ Error en upload:", error);
       const errorMsg = error.response?.data?.error || error.message;
-      setError(`❌ Error: ${errorMsg}`);
-      console.error("Error en upload:", error);
+      setError("Error al subir archivo: " + errorMsg);
+      alert("Error: " + errorMsg);
     } finally {
       setUploading(false);
     }

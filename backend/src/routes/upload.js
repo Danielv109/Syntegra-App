@@ -40,24 +40,36 @@ const upload = multer({
 
 router.post("/", upload.single("file"), async (req, res) => {
   try {
-    const { clientId } = req.body;
+    const { clientId, channel } = req.body;
+
+    console.log("📥 Upload recibido:", {
+      clientId,
+      channel,
+      file: req.file?.filename,
+      user: req.user?.username,
+    });
 
     if (!clientId) {
+      console.error("❌ clientId faltante en request body");
       return res.status(400).json({ error: "clientId es requerido" });
     }
 
-    // AUTORIZACIÓN
+    if (!req.file) {
+      return res.status(400).json({ error: "No se subió ningún archivo" });
+    }
+
+    // AUTORIZACIÓN: Verificar acceso
     const hasAccess = await verifyClientAccess(
       req.user.userId,
       clientId,
       req.user.role
     );
     if (!hasAccess) {
-      return res.status(403).json({ error: "No tienes permiso" });
-    }
-
-    if (!req.file) {
-      return res.status(400).json({ error: "No file uploaded" });
+      return res
+        .status(403)
+        .json({
+          error: "No tienes permiso para subir archivos a este cliente",
+        });
     }
 
     // Verificar que el cliente existe
@@ -69,9 +81,8 @@ router.post("/", upload.single("file"), async (req, res) => {
       return res.status(404).json({ error: "Cliente no encontrado" });
     }
 
-    // La autorización ya fue verificada por el middleware authorizeClient
     console.log(
-      `📤 Upload realizado por ${req.user.username} para cliente ${clientId}`
+      `✅ Upload autorizado para ${req.user.username} -> cliente ${clientId}`
     );
 
     // Crear trabajo en la cola
@@ -92,8 +103,8 @@ router.post("/", upload.single("file"), async (req, res) => {
       message: "Archivo recibido. Procesamiento iniciado en segundo plano.",
     });
   } catch (error) {
-    console.error("Error uploading file:", error);
-    res.status(500).json({ error: "Failed to upload file" });
+    console.error("❌ Error uploading file:", error);
+    res.status(500).json({ error: "Failed to upload file: " + error.message });
   }
 });
 
