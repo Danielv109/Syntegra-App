@@ -1,12 +1,23 @@
 import { Router } from "express";
 import pool from "../db/connection.js";
 import axios from "axios";
+import { verifyClientAccess } from "../middleware/auth.js";
 
 const router = Router();
 
 router.get("/:clientId", async (req, res) => {
   try {
     const { clientId } = req.params;
+
+    // AUTORIZACIÓN
+    const hasAccess = await verifyClientAccess(
+      req.user.userId,
+      clientId,
+      req.user.role
+    );
+    if (!hasAccess) {
+      return res.status(403).json({ error: "No tienes permiso" });
+    }
 
     // Verificar que el cliente existe
     const clientCheck = await pool.query(
@@ -40,6 +51,16 @@ router.post("/", async (req, res) => {
 
     if (!clientId || !type || !name || !apiKey) {
       return res.status(400).json({ error: "Faltan campos requeridos" });
+    }
+
+    // AUTORIZACIÓN
+    const hasAccess = await verifyClientAccess(
+      req.user.userId,
+      clientId,
+      req.user.role
+    );
+    if (!hasAccess) {
+      return res.status(403).json({ error: "No tienes permiso" });
     }
 
     // Verificar que el cliente existe

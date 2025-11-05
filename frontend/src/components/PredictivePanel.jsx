@@ -30,13 +30,13 @@ export default function PredictivePanel({ predictive }) {
                 {pred.metric}
               </h4>
               <span
-                className={`badge ${
+                className={`badge text-xs ${
                   pred.trend === "up"
                     ? "badge-success"
                     : pred.trend === "down"
                     ? "badge-error"
                     : "badge-warning"
-                } text-xs`}
+                }`}
               >
                 {pred.prediction}
               </span>

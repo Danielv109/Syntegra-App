@@ -1,5 +1,6 @@
 import { Router } from "express";
 import pool from "../db/connection.js";
+import { verifyClientAccess } from "../middleware/auth.js";
 
 const router = Router();
 
@@ -155,6 +156,21 @@ router.get("/", async (req, res) => {
       return res.status(400).json({ error: "clientId es requerido" });
     }
 
+    // AUTORIZACIÓN: Verificar que el usuario tiene acceso a este cliente
+    const hasAccess = await verifyClientAccess(
+      req.user.userId,
+      clientId,
+      req.user.role
+    );
+    if (!hasAccess) {
+      console.log(
+        `❌ Usuario ${req.user.username} NO autorizado para cliente ${clientId}`
+      );
+      return res
+        .status(403)
+        .json({ error: "No tienes permiso para acceder a este cliente" });
+    }
+
     // Verificar que el cliente existe
     const clientCheck = await pool.query(
       "SELECT * FROM clients WHERE id = $1",
@@ -164,9 +180,8 @@ router.get("/", async (req, res) => {
       return res.status(404).json({ error: "Cliente no encontrado" });
     }
 
-    // La autorización ya fue verificada por el middleware authorizeClient
     console.log(
-      `📊 Insights solicitado por ${req.user.username} para cliente ${clientId}`
+      `📊 Insights autorizado para ${req.user.username} -> cliente ${clientId}`
     );
 
     // ============================================
@@ -241,13 +256,12 @@ router.get("/", async (req, res) => {
       [clientId]
     );
 
-    // Quejas críticas (única query permitida a messages para dashboard)
+    // REEMPLAZAR QUEJAS CRÍTICAS POR QUERY A topic_summary
     const criticalComplaintsResult = await pool.query(
-      `SELECT COUNT(*) as count 
-       FROM messages 
+      `SELECT COALESCE(SUM(negative_count), 0) as count 
+       FROM topic_summary 
        WHERE client_id = $1 
-       AND sentiment = 'negative' 
-       AND intent = 'queja'`,
+       AND (topic ILIKE '%queja%' OR topic ILIKE '%reclamo%')`,
       [clientId]
     );
 

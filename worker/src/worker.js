@@ -165,11 +165,28 @@ async function processJob(job) {
 
     let messages = [];
 
-    if (job.type === "api_ingest" || job.type === "connector") {
+    // ============================================
+    // SOPORTE PARA CSV Y API
+    // ============================================
+
+    if (
+      job.type === "api_ingest" ||
+      job.type === "api" ||
+      job.type === "connector"
+    ) {
       // Mensajes desde connector-worker (payload JSON)
-      console.log(`📦 Cargando desde API payload`);
+      console.log(`📦 Cargando desde API payload (${job.id})`);
+
+      if (!job.payload) {
+        throw new Error("Job de tipo API sin payload");
+      }
+
       const payload =
         typeof job.payload === "string" ? JSON.parse(job.payload) : job.payload;
+
+      if (!Array.isArray(payload)) {
+        throw new Error("Payload debe ser un array de mensajes");
+      }
 
       messages = payload.map((msg, idx) => ({
         id: `msg_${job.id}_${idx}_${Date.now()}`,
@@ -179,10 +196,22 @@ async function processJob(job) {
         timestamp: msg.timestamp || new Date().toISOString(),
       }));
 
-      console.log(`   ✅ ${messages.length} mensajes de API`);
-    } else if (job.type === "upload" || job.type === "csv_upload") {
+      console.log(`   ✅ ${messages.length} mensajes cargados desde API`);
+    } else if (
+      job.type === "upload" ||
+      job.type === "csv" ||
+      job.type === "csv_upload"
+    ) {
       // Mensajes desde CSV
       console.log(`📄 Cargando desde CSV: ${job.file_path}`);
+
+      if (!job.file_path) {
+        throw new Error("Job de tipo CSV sin file_path");
+      }
+
+      if (!fs.existsSync(job.file_path)) {
+        throw new Error(`Archivo no encontrado: ${job.file_path}`);
+      }
 
       await new Promise((resolve, reject) => {
         fs.createReadStream(job.file_path)
@@ -202,9 +231,9 @@ async function processJob(job) {
           .on("error", reject);
       });
 
-      console.log(`   ✅ ${messages.length} mensajes de CSV`);
+      console.log(`   ✅ ${messages.length} mensajes cargados desde CSV`);
     } else {
-      throw new Error(`Tipo no soportado: ${job.type}`);
+      throw new Error(`Tipo de trabajo no soportado: ${job.type}`);
     }
 
     await client.query("UPDATE jobs SET total_records = $1 WHERE id = $2", [
@@ -227,7 +256,9 @@ async function processJob(job) {
 
     for (const msg of classified) {
       await client.query(
-        "INSERT INTO messages (id, client_id, text, channel, timestamp, sentiment, topic, intent, requires_validation) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (id) DO NOTHING",
+        `INSERT INTO messages (id, client_id, text, channel, timestamp, sentiment, topic, intent, requires_validation) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+         ON CONFLICT (id) DO NOTHING`,
         [
           msg.id,
           msg.client_id,
@@ -273,12 +304,14 @@ async function processJob(job) {
     await client.query("COMMIT");
 
     console.log(
-      `✅ Trabajo ${job.id} completado: ${processedCount} mensajes procesados`
+      `✅ Job ${job.id} completado: ${processedCount} mensajes procesados`
     );
 
     // Limpiar archivo CSV después del commit exitoso
     if (
-      (job.type === "upload" || job.type === "csv_upload") &&
+      (job.type === "upload" ||
+        job.type === "csv" ||
+        job.type === "csv_upload") &&
       job.file_path &&
       fs.existsSync(job.file_path)
     ) {
@@ -287,7 +320,7 @@ async function processJob(job) {
     }
   } catch (error) {
     await client.query("ROLLBACK");
-    console.error(`❌ Error: ${error.message}`);
+    console.error(`❌ Error en job ${job.id}:`, error.message);
 
     const retryCount = job.retry_count + 1;
 
@@ -311,7 +344,7 @@ async function processJob(job) {
         [error.message, job.id]
       );
       console.log(
-        `💀 Trabajo ${job.id} falló permanentemente después de ${job.max_retries} intentos`
+        `💀 Job ${job.id} falló después de ${job.max_retries} intentos`
       );
     }
   } finally {

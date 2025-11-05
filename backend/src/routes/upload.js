@@ -4,6 +4,7 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import pool from "../db/connection.js";
+import { verifyClientAccess } from "../middleware/auth.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -39,10 +40,20 @@ const upload = multer({
 
 router.post("/", upload.single("file"), async (req, res) => {
   try {
-    const { clientId, channel } = req.body;
+    const { clientId } = req.body;
 
     if (!clientId) {
       return res.status(400).json({ error: "clientId es requerido" });
+    }
+
+    // AUTORIZACIÓN
+    const hasAccess = await verifyClientAccess(
+      req.user.userId,
+      clientId,
+      req.user.role
+    );
+    if (!hasAccess) {
+      return res.status(403).json({ error: "No tienes permiso" });
     }
 
     if (!req.file) {
@@ -92,6 +103,16 @@ router.get("/history", async (req, res) => {
 
     if (!clientId) {
       return res.status(400).json({ error: "clientId es requerido" });
+    }
+
+    // AUTORIZACIÓN
+    const hasAccess = await verifyClientAccess(
+      req.user.userId,
+      clientId,
+      req.user.role
+    );
+    if (!hasAccess) {
+      return res.status(403).json({ error: "No tienes permiso" });
     }
 
     // Verificar que el cliente existe

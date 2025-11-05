@@ -45,6 +45,26 @@ export async function authenticate(req, res, next) {
   }
 }
 
+export async function verifyClientAccess(userId, clientId, role) {
+  try {
+    // Admin tiene acceso total
+    if (role === "admin") {
+      return true;
+    }
+
+    // Verificar membresía en team_memberships
+    const result = await pool.query(
+      "SELECT * FROM team_memberships WHERE user_id = $1 AND client_id = $2",
+      [userId, clientId]
+    );
+
+    return result.rows.length > 0;
+  } catch (error) {
+    console.error("❌ Error verificando acceso:", error);
+    return false;
+  }
+}
+
 export async function authorizeClient(req, res, next) {
   try {
     const clientId =
@@ -56,21 +76,10 @@ export async function authorizeClient(req, res, next) {
 
     const userId = req.user.userId;
 
-    // Admin tiene acceso total
-    if (req.user.role === "admin") {
-      console.log(
-        `✅ Admin ${req.user.username} autorizado para cliente ${clientId}`
-      );
-      return next();
-    }
+    // Verificar acceso usando la función helper
+    const hasAccess = await verifyClientAccess(userId, clientId, req.user.role);
 
-    // Verificar membresía en team_memberships
-    const membershipResult = await pool.query(
-      "SELECT * FROM team_memberships WHERE user_id = $1 AND client_id = $2",
-      [userId, clientId]
-    );
-
-    if (membershipResult.rows.length === 0) {
+    if (!hasAccess) {
       console.log(
         `❌ Usuario ${req.user.username} NO tiene acceso a cliente ${clientId}`
       );

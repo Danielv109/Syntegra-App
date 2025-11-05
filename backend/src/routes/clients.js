@@ -71,6 +71,13 @@ router.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
 
+    // AUTORIZACIÓN: Solo admin puede eliminar clientes
+    if (req.user.role !== "admin") {
+      return res
+        .status(403)
+        .json({ error: "Solo administradores pueden eliminar clientes" });
+    }
+
     console.log("Eliminando cliente:", id);
 
     // Con ON DELETE CASCADE en las foreign keys, solo necesitamos eliminar el cliente

@@ -1,11 +1,22 @@
 import { Router } from "express";
 import pool from "../db/connection.js";
+import { verifyClientAccess } from "../middleware/auth.js";
 
 const router = Router();
 
 router.get("/", async (req, res) => {
   try {
     const { clientId } = req.query;
+
+    // AUTORIZACIÓN
+    const hasAccess = await verifyClientAccess(
+      req.user.userId,
+      clientId,
+      req.user.role
+    );
+    if (!hasAccess) {
+      return res.status(403).json({ error: "No tienes permiso" });
+    }
 
     if (!clientId) {
       return res.status(400).json({ error: "clientId es requerido" });
@@ -65,7 +76,17 @@ router.get("/", async (req, res) => {
 
 router.put("/", async (req, res) => {
   try {
-    const { clientId, notifications, processing, integrations } = req.body;
+    const { clientId } = req.body;
+
+    // AUTORIZACIÓN
+    const hasAccess = await verifyClientAccess(
+      req.user.userId,
+      clientId,
+      req.user.role
+    );
+    if (!hasAccess) {
+      return res.status(403).json({ error: "No tienes permiso" });
+    }
 
     if (!clientId) {
       return res.status(400).json({ error: "clientId es requerido" });

@@ -14,6 +14,8 @@ export default function TopicsPanel({ topics }) {
     );
   }
 
+  const maxCount = Math.max(...topics.map((t) => t.count));
+
   return (
     <div className="card">
       <h3 className="text-text-primary text-base font-semibold mb-4">
@@ -21,8 +23,13 @@ export default function TopicsPanel({ topics }) {
       </h3>
       <div className="space-y-3">
         {topics.map((topic, idx) => {
-          const maxCount = Math.max(...topics.map((t) => t.count));
           const widthPercentage = (topic.count / maxCount) * 100;
+          const sentimentColor =
+            topic.sentiment === "positive"
+              ? "bg-accent-success"
+              : topic.sentiment === "negative"
+              ? "bg-accent-error"
+              : "bg-accent-warning";
 
           return (
             <div key={idx}>
@@ -34,13 +41,7 @@ export default function TopicsPanel({ topics }) {
               </div>
               <div className="w-full h-2 bg-dark-border rounded overflow-hidden">
                 <div
-                  className={`h-full transition-all duration-300 ${
-                    topic.sentiment === "positive"
-                      ? "bg-accent-success"
-                      : topic.sentiment === "negative"
-                      ? "bg-accent-error"
-                      : "bg-accent-warning"
-                  }`}
+                  className={`h-full transition-all duration-300 ${sentimentColor}`}
                   style={{ width: `${widthPercentage}%` }}
                 />
               </div>

@@ -30,13 +30,13 @@ export default function ActionsPanel({ actions }) {
                 {action.title}
               </h4>
               <span
-                className={`badge ${
+                className={`badge text-xs ${
                   action.priority === "high"
                     ? "badge-error"
                     : action.priority === "medium"
                     ? "badge-warning"
                     : "badge-success"
-                } text-xs`}
+                }`}
               >
                 {action.priority}
               </span>

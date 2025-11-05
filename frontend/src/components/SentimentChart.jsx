@@ -11,7 +11,7 @@ import {
 } from "recharts";
 
 export default function SentimentChart({ data }) {
-  const chartConfig = {
+  const chartStyles = {
     cartesianGrid: { strokeDasharray: "3 3", stroke: "#27272a" },
     xAxis: { stroke: "#a1a1aa", tick: { fill: "#a1a1aa" } },
     yAxis: { stroke: "#a1a1aa", tick: { fill: "#a1a1aa" } },
@@ -31,11 +31,11 @@ export default function SentimentChart({ data }) {
     <div className="w-full h-80">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data}>
-          <CartesianGrid {...chartConfig.cartesianGrid} />
-          <XAxis dataKey="channel" {...chartConfig.xAxis} />
-          <YAxis {...chartConfig.yAxis} />
-          <Tooltip {...chartConfig.tooltip} />
-          <Legend {...chartConfig.legend} />
+          <CartesianGrid {...chartStyles.cartesianGrid} />
+          <XAxis dataKey="channel" {...chartStyles.xAxis} />
+          <YAxis {...chartStyles.yAxis} />
+          <Tooltip {...chartStyles.tooltip} />
+          <Legend {...chartStyles.legend} />
           <Bar dataKey="positive" fill="#10b981" radius={[4, 4, 0, 0]} />
           <Bar dataKey="neutral" fill="#f59e0b" radius={[4, 4, 0, 0]} />
           <Bar dataKey="negative" fill="#ef4444" radius={[4, 4, 0, 0]} />

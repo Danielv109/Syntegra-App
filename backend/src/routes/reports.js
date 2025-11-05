@@ -4,6 +4,7 @@ import { generateReport } from "../services/pdf-generator.js";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
+import { verifyClientAccess } from "../middleware/auth.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,18 +18,20 @@ router.get("/", async (req, res) => {
       return res.status(400).json({ error: "clientId es requerido" });
     }
 
-    // Verificar que el cliente existe
-    const clientCheck = await pool.query(
-      "SELECT id FROM clients WHERE id = $1",
-      [clientId]
+    // AUTORIZACIÓN
+    const hasAccess = await verifyClientAccess(
+      req.user.userId,
+      clientId,
+      req.user.role
     );
-    if (clientCheck.rows.length === 0) {
-      return res.status(404).json({ error: "Cliente no encontrado" });
+    if (!hasAccess) {
+      return res
+        .status(403)
+        .json({ error: "No tienes permiso para acceder a este cliente" });
     }
 
-    // La autorización ya fue verificada por el middleware authorizeClient
     console.log(
-      `📄 Reportes solicitados por ${req.user.username} para cliente ${clientId}`
+      `📄 Reportes autorizado para ${req.user.username} -> cliente ${clientId}`
     );
 
     const result = await pool.query(
@@ -50,6 +53,18 @@ router.post("/generate", async (req, res) => {
       return res.status(400).json({ error: "clientId es requerido" });
     }
 
+    // AUTORIZACIÓN
+    const hasAccess = await verifyClientAccess(
+      req.user.userId,
+      clientId,
+      req.user.role
+    );
+    if (!hasAccess) {
+      return res
+        .status(403)
+        .json({ error: "No tienes permiso para acceder a este cliente" });
+    }
+
     const clientCheck = await pool.query(
       "SELECT * FROM clients WHERE id = $1",
       [clientId]
@@ -60,7 +75,7 @@ router.post("/generate", async (req, res) => {
     const client = clientCheck.rows[0];
 
     console.log(
-      `📄 Reporte por ${req.user.username} para ${clientId} - SOLO RESÚMENES`
+      `📄 Generando reporte para ${client.name} por ${req.user.username} - SOLO RESÚMENES`
     );
 
     // ============================================
@@ -72,16 +87,21 @@ router.post("/generate", async (req, res) => {
       "SELECT COALESCE(SUM(total_messages), 0) as total FROM channel_summary WHERE client_id = $1",
       [clientId]
     );
+    const totalMessages = parseInt(totalMessagesResult.rows[0]?.total || 0);
 
     // 2. Quejas críticas desde topic_summary
     const criticalComplaintsResult = await pool.query(
-      "SELECT COALESCE(SUM(negative_count), 0) as count FROM topic_summary WHERE client_id = $1 AND (topic ILIKE '%queja%' OR topic ILIKE '%reclamo%' OR topic ILIKE '%problema%')",
+      `SELECT COALESCE(SUM(negative_count), 0) as count 
+       FROM topic_summary 
+       WHERE client_id = $1 
+       AND (topic ILIKE '%queja%' OR topic ILIKE '%reclamo%' OR topic ILIKE '%problema%')`,
       [clientId]
     );
 
     // 3. Sentimiento positivo desde channel_summary
     const positiveRateResult = await pool.query(
-      "SELECT ROUND((SUM(positive_count)::numeric / NULLIF(SUM(total_messages), 0)::numeric) * 100, 0) as rate FROM channel_summary WHERE client_id = $1",
+      `SELECT ROUND((SUM(positive_count)::numeric / NULLIF(SUM(total_messages), 0)::numeric) * 100, 0) as rate 
+       FROM channel_summary WHERE client_id = $1`,
       [clientId]
     );
 
@@ -91,36 +111,56 @@ router.post("/generate", async (req, res) => {
       [clientId]
     );
 
-    // 5. Sentimiento por canal
+    // 5. Sentimiento por canal desde channel_summary
     const sentimentByChannelResult = await pool.query(
-      "SELECT channel, positive_count as positive, neutral_count as neutral, negative_count as negative FROM channel_summary WHERE client_id = $1 ORDER BY total_messages DESC",
+      `SELECT channel, 
+              positive_count as positive, 
+              neutral_count as neutral, 
+              negative_count as negative 
+       FROM channel_summary 
+       WHERE client_id = $1 
+       ORDER BY total_messages DESC`,
       [clientId]
     );
 
-    // 6. Topics
+    // 6. Topics desde topic_summary
     const topicsResult = await pool.query(
-      `SELECT topic, total_count as count, 
-       CASE WHEN positive_count > negative_count THEN 'positive' 
-            WHEN negative_count > positive_count THEN 'negative' ELSE 'neutral' END as sentiment 
-       FROM topic_summary WHERE client_id = $1 ORDER BY total_count DESC LIMIT 5`,
+      `SELECT topic, 
+              total_count as count, 
+              CASE 
+                WHEN positive_count > negative_count THEN 'positive' 
+                WHEN negative_count > positive_count THEN 'negative' 
+                ELSE 'neutral' 
+              END as sentiment 
+       FROM topic_summary 
+       WHERE client_id = $1 
+       ORDER BY total_count DESC 
+       LIMIT 5`,
       [clientId]
     );
 
-    // 7. Alertas
+    // 7. Alertas desde topic_summary
     const alertsResult = await pool.query(
-      `SELECT topic, negative_count, 
-       ROUND((negative_count::numeric / NULLIF(total_count, 0)::numeric) * 100, 0) as negative_rate 
-       FROM topic_summary WHERE client_id = $1 AND negative_count > 0 
-       ORDER BY negative_count DESC LIMIT 3`,
+      `SELECT topic, 
+              negative_count, 
+              ROUND((negative_count::numeric / NULLIF(total_count, 0)::numeric) * 100, 0) as negative_rate 
+       FROM topic_summary 
+       WHERE client_id = $1 AND negative_count > 0 
+       ORDER BY negative_count DESC 
+       LIMIT 3`,
       [clientId]
     );
 
-    // 8. Evolución diaria
+    // 8. Evolución diaria últimos 7 días desde daily_analytics
     const dailyEvolutionResult = await pool.query(
-      `SELECT TO_CHAR(date, 'DD/MM') as date, SUM(total_messages) as total, 
-       SUM(positive_count) as positive, SUM(negative_count) as negative 
-       FROM daily_analytics WHERE client_id = $1 AND date >= CURRENT_DATE - INTERVAL '7 days' 
-       GROUP BY date ORDER BY date ASC`,
+      `SELECT TO_CHAR(date, 'DD/MM') as date, 
+              SUM(total_messages) as total, 
+              SUM(positive_count) as positive, 
+              SUM(negative_count) as negative 
+       FROM daily_analytics 
+       WHERE client_id = $1 AND date >= CURRENT_DATE - INTERVAL '7 days' 
+       GROUP BY date 
+       ORDER BY date ASC`,
       [clientId]
     );
 
@@ -128,7 +168,7 @@ router.post("/generate", async (req, res) => {
       kpis: [
         {
           label: "Total de Mensajes",
-          value: totalMessagesResult.rows[0]?.total?.toString() || "0",
+          value: totalMessages.toString(),
           delta: null,
           trend: null,
         },
@@ -177,6 +217,10 @@ router.post("/generate", async (req, res) => {
       })),
     };
 
+    console.log(
+      `📊 Datos del reporte calculados desde resúmenes - ${totalMessages} mensajes`
+    );
+
     const { filename, filepath } = await generateReport(reportData, client);
     const reportId = "rpt_" + Date.now();
 
@@ -194,6 +238,8 @@ router.post("/generate", async (req, res) => {
     const newReport = await pool.query("SELECT * FROM reports WHERE id = $1", [
       reportId,
     ]);
+
+    console.log(`✅ Reporte generado: ${filename}`);
 
     res.json({ success: true, report: newReport.rows[0] });
   } catch (error) {

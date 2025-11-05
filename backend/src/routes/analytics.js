@@ -1,5 +1,6 @@
 import { Router } from "express";
 import pool from "../db/connection.js";
+import { verifyClientAccess } from "../middleware/auth.js";
 
 const router = Router();
 
@@ -9,6 +10,21 @@ router.get("/", async (req, res) => {
 
     if (!clientId) {
       return res.status(400).json({ error: "clientId es requerido" });
+    }
+
+    // AUTORIZACIÓN: Verificar acceso
+    const hasAccess = await verifyClientAccess(
+      req.user.userId,
+      clientId,
+      req.user.role
+    );
+    if (!hasAccess) {
+      console.log(
+        `❌ Usuario ${req.user.username} NO autorizado para cliente ${clientId}`
+      );
+      return res
+        .status(403)
+        .json({ error: "No tienes permiso para acceder a este cliente" });
     }
 
     // Verificar que el cliente existe
@@ -21,7 +37,7 @@ router.get("/", async (req, res) => {
     }
 
     console.log(
-      `📊 Analytics por ${req.user.username} para ${clientId} - SOLO RESÚMENES`
+      `📊 Analytics autorizado para ${req.user.username} -> cliente ${clientId} - SOLO RESÚMENES`
     );
 
     // ============================================
@@ -49,48 +65,65 @@ router.get("/", async (req, res) => {
       });
     }
 
-    // 2. Promedio de sentimiento
+    // 2. Promedio de sentimiento desde channel_summary
     const avgSentimentResult = await pool.query(
-      "SELECT ROUND((SUM(positive_count)::numeric / NULLIF(SUM(total_messages), 0)::numeric) * 100, 0) as avg FROM channel_summary WHERE client_id = $1",
+      `SELECT ROUND((SUM(positive_count)::numeric / NULLIF(SUM(total_messages), 0)::numeric) * 100, 0) as avg 
+       FROM channel_summary WHERE client_id = $1`,
       [clientId]
     );
 
-    // 3. Canal principal
+    // 3. Canal principal desde channel_summary
     const topChannelResult = await pool.query(
       "SELECT channel FROM channel_summary WHERE client_id = $1 ORDER BY total_messages DESC LIMIT 1",
       [clientId]
     );
 
-    // 4. Tendencia diaria (últimos 7 días)
+    // 4. Tendencia diaria últimos 7 días desde daily_analytics
     const dailyTrendResult = await pool.query(
-      `SELECT TO_CHAR(date, 'DD/MM') as date, SUM(positive_count) as positive, SUM(neutral_count) as neutral, SUM(negative_count) as negative 
-       FROM daily_analytics WHERE client_id = $1 AND date >= CURRENT_DATE - INTERVAL '7 days' 
+      `SELECT TO_CHAR(date, 'DD/MM') as date, 
+              SUM(positive_count) as positive, 
+              SUM(neutral_count) as neutral, 
+              SUM(negative_count) as negative 
+       FROM daily_analytics 
+       WHERE client_id = $1 AND date >= CURRENT_DATE - INTERVAL '7 days' 
        GROUP BY date ORDER BY date ASC`,
       [clientId]
     );
 
-    // 5. Tendencia semanal (últimas 4 semanas)
+    // 5. Tendencia semanal últimas 4 semanas desde daily_analytics
     const weeklyTrendResult = await pool.query(
-      `SELECT 'S' || TO_CHAR(date, 'WW') as week, SUM(positive_count) as positive, SUM(neutral_count) as neutral, SUM(negative_count) as negative 
-       FROM daily_analytics WHERE client_id = $1 AND date >= CURRENT_DATE - INTERVAL '28 days' 
-       GROUP BY TO_CHAR(date, 'WW'), DATE_TRUNC('week', date) ORDER BY DATE_TRUNC('week', date) ASC`,
+      `SELECT 'S' || TO_CHAR(date, 'WW') as week, 
+              SUM(positive_count) as positive, 
+              SUM(neutral_count) as neutral, 
+              SUM(negative_count) as negative 
+       FROM daily_analytics 
+       WHERE client_id = $1 AND date >= CURRENT_DATE - INTERVAL '28 days' 
+       GROUP BY TO_CHAR(date, 'WW'), DATE_TRUNC('week', date) 
+       ORDER BY DATE_TRUNC('week', date) ASC`,
       [clientId]
     );
 
-    // 6. Comparativa por canal
+    // 6. Comparativa por canal desde channel_summary
     const channelComparisonResult = await pool.query(
-      `SELECT channel, total_messages as messages, 
-       ROUND((positive_count::numeric / NULLIF(total_messages, 0)::numeric) * 100, 0) as sentiment, 
-       COALESCE(avg_response_time_hours, 0) as response_hours 
-       FROM channel_summary WHERE client_id = $1 ORDER BY total_messages DESC`,
+      `SELECT channel, 
+              total_messages as messages, 
+              ROUND((positive_count::numeric / NULLIF(total_messages, 0)::numeric) * 100, 0) as sentiment, 
+              COALESCE(avg_response_time_hours, 0) as response_hours 
+       FROM channel_summary 
+       WHERE client_id = $1 
+       ORDER BY total_messages DESC`,
       [clientId]
     );
 
-    // 7. Top 5 topics
+    // 7. Top 5 topics desde topic_summary
     const topTopicsResult = await pool.query(
-      `SELECT topic, total_count as count, 
-       ROUND((positive_count::numeric / NULLIF(total_count, 0)::numeric) * 100, 0) as positive_rate 
-       FROM topic_summary WHERE client_id = $1 ORDER BY total_count DESC LIMIT 5`,
+      `SELECT topic, 
+              total_count as count, 
+              ROUND((positive_count::numeric / NULLIF(total_count, 0)::numeric) * 100, 0) as positive_rate 
+       FROM topic_summary 
+       WHERE client_id = $1 
+       ORDER BY total_count DESC 
+       LIMIT 5`,
       [clientId]
     );
 
@@ -102,6 +135,8 @@ router.get("/", async (req, res) => {
         responseTime: row.response_hours > 0 ? `${row.response_hours}h` : "N/A",
       };
     });
+
+    console.log(`✅ Analytics completado: ${total} mensajes totales`);
 
     res.json({
       overview: {

@@ -53,7 +53,7 @@ async function migrate() {
       );
     `);
 
-    // Tabla de trabajos con ON DELETE CASCADE
+    // Tabla de trabajos con payload JSONB
     await client.query(`
       CREATE TABLE IF NOT EXISTS jobs (
         id VARCHAR(50) PRIMARY KEY,
