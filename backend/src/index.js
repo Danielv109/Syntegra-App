@@ -1,58 +1,47 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import insightsRouter from "./routes/insights.js";
-import uploadRouter from "./routes/upload.js";
-import processRouter from "./routes/process.js";
-import analyticsRouter from "./routes/analytics.js";
-import reportsRouter from "./routes/reports.js";
-import settingsRouter from "./routes/settings.js";
-import clientsRouter from "./routes/clients.js";
-import validationRouter from "./routes/validation.js";
-import messagesRouter from "./routes/messages.js";
-import connectorsRouter from "./routes/connectors.js";
+import clientsRoutes from "./routes/clients.js";
+import insightsRoutes from "./routes/insights.js";
+import analyticsRoutes from "./routes/analytics.js";
+import validationRoutes from "./routes/validation.js";
+import messagesRoutes from "./routes/messages.js";
+import connectorsRoutes from "./routes/connectors.js";
+import uploadRoutes from "./routes/upload.js";
+import processRoutes from "./routes/process.js";
+import reportsRoutes from "./routes/reports.js";
+import settingsRoutes from "./routes/settings.js";
+import authRoutes from "./routes/auth.js";
+import { authenticate } from "./middleware/auth.js";
 
 dotenv.config();
 
 const app = express();
-
-app.use(cors());
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ extended: true, limit: "50mb" }));
-
-// Routes
-app.use("/api/insights", insightsRouter);
-app.use("/api/upload", uploadRouter);
-app.use("/api/process", processRouter);
-app.use("/api/analytics", analyticsRouter);
-app.use("/api/reports", reportsRouter);
-app.use("/api/settings", settingsRouter);
-app.use("/api/clients", clientsRouter);
-app.use("/api/validation", validationRouter);
-app.use("/api/messages", messagesRouter);
-app.use("/api/connectors", connectorsRouter);
-
-// Health check
-app.get("/health", (_req, res) =>
-  res.json({ status: "ok", timestamp: new Date().toISOString() })
-);
-
 const PORT = process.env.PORT || 4000;
 
-app.listen(PORT, () => {
+app.use(cors());
+app.use(express.json());
+
+// Ruta de autenticación (pública)
+app.use("/api/auth", authRoutes);
+
+// Todas las demás rutas requieren autenticación
+app.use("/api/clients", authenticate, clientsRoutes);
+app.use("/api/insights", authenticate, insightsRoutes);
+app.use("/api/analytics", authenticate, analyticsRoutes);
+app.use("/api/validation", authenticate, validationRoutes);
+app.use("/api/messages", authenticate, messagesRoutes);
+app.use("/api/connectors", authenticate, connectorsRoutes);
+app.use("/api/upload", authenticate, uploadRoutes);
+app.use("/api/process", authenticate, processRoutes);
+app.use("/api/reports", authenticate, reportsRoutes);
+app.use("/api/settings", authenticate, settingsRoutes);
+
+app.get("/", (req, res) => {
+  res.json({ message: "Syntegra API - Sistema de autenticación activo" });
+});
+
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Backend running on port ${PORT}`);
-  console.log(`📊 Endpoints available:`);
-  console.log(`   - GET  /health`);
-  console.log(`   - GET  /api/insights`);
-  console.log(`   - POST /api/upload`);
-  console.log(`   - GET  /api/upload/history`);
-  console.log(`   - GET  /api/analytics`);
-  console.log(`   - GET  /api/reports`);
-  console.log(`   - POST /api/reports/generate`);
-  console.log(`   - GET  /api/settings`);
-  console.log(`   - PUT  /api/settings`);
-  console.log(`   - GET  /api/clients`);
-  console.log(`   - GET  /api/validation/queue/:clientId`);
-  console.log(`   - GET  /api/messages/:clientId`);
-  console.log(`   - GET  /api/connectors/:clientId`);
+  console.log(`🔒 Autenticación JWT activa`);
 });

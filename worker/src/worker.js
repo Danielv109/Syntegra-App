@@ -89,8 +89,8 @@ async function updateAnalyticsSummaries(client, clientId, messages) {
 
     for (const [topic, counts] of Object.entries(topicGroups)) {
       await client.query(
-        `INSERT INTO topic_summary (client_id, topic, total_count, positive_count, negative_count, updated_at)
-         VALUES ($1, $2, $3, $4, $5, NOW())
+        `INSERT INTO topic_summary (client_id, topic, total_count, positive_count, negative_count, last_7_days_count, last_30_days_count, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $3, $3, NOW())
          ON CONFLICT (client_id, topic)
          DO UPDATE SET
            total_count = topic_summary.total_count + $3,
@@ -143,6 +143,7 @@ async function updateAnalyticsSummaries(client, clientId, messages) {
     console.log(`✅ Tablas de resumen actualizadas`);
   } catch (error) {
     console.error(`❌ Error actualizando resúmenes:`, error);
+    throw error;
   }
 }
 
@@ -156,6 +157,12 @@ async function processJob(job) {
       }/${job.max_retries})`
     );
 
+    // ============================================
+    // TRANSACCIÓN ATÓMICA - TODO O NADA
+    // ============================================
+    await client.query("BEGIN");
+
+    // Marcar como procesando DENTRO de la transacción
     await client.query(
       "UPDATE jobs SET status = 'processing', started_at = NOW() WHERE id = $1",
       [job.id]
@@ -199,11 +206,6 @@ async function processJob(job) {
           .on("end", resolve)
           .on("error", reject);
       });
-
-      // Limpiar archivo después de leer
-      if (fs.existsSync(job.file_path)) {
-        fs.unlinkSync(job.file_path);
-      }
     } else {
       throw new Error(`Tipo de trabajo no soportado: ${job.type}`);
     }
@@ -222,9 +224,6 @@ async function processJob(job) {
     // Clasificar con IA
     console.log(`🤖 Clasificando con IA...`);
     const classified = await classifyMessagesBatch(messages, 50);
-
-    // Guardar en BD
-    await client.query("BEGIN");
 
     let processedCount = 0;
     for (const msg of classified) {
@@ -262,17 +261,27 @@ async function processJob(job) {
       [job.client_id]
     );
 
-    await client.query("COMMIT");
-
-    // Marcar como completado
+    // Marcar como completado DENTRO de la transacción
     await client.query(
       "UPDATE jobs SET status = 'completed', processed_records = $1, completed_at = NOW(), last_error = NULL WHERE id = $2",
       [processedCount, job.id]
     );
 
+    // COMMIT FINAL - Si esto falla, todo se revierte
+    await client.query("COMMIT");
+
     console.log(
       `✅ Trabajo ${job.id} completado: ${processedCount} mensajes procesados`
     );
+
+    // Limpiar archivo DESPUÉS del commit exitoso
+    if (
+      (job.type === "upload" || job.type === "csv_upload") &&
+      job.file_path &&
+      fs.existsSync(job.file_path)
+    ) {
+      fs.unlinkSync(job.file_path);
+    }
   } catch (error) {
     await client.query("ROLLBACK");
     console.error(`❌ Error en trabajo ${job.id}:`, error.message);

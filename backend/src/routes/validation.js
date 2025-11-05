@@ -44,11 +44,19 @@ router.post("/validate", async (req, res) => {
     }
     const original = originalMessage.rows[0];
 
+    console.log("🔧 Corrección humana:", {
+      messageId,
+      original: { sentiment: original.sentiment, topic: original.topic },
+      corrections,
+    });
+
+    // Actualizar mensaje
     await client.query(
       "UPDATE messages SET sentiment = $1, topic = $2, intent = $3, validated = true WHERE id = $4",
       [corrections.sentiment, corrections.topic, corrections.intent, messageId]
     );
 
+    // Guardar en fine-tuning dataset
     const finetuningId = "ft_" + Date.now();
     await client.query(
       "INSERT INTO finetuning_dataset (id, client_id, message_id, text, ai_sentiment, ai_topic, ai_intent, human_sentiment, human_topic, human_intent, corrected_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
@@ -67,8 +75,106 @@ router.post("/validate", async (req, res) => {
       ]
     );
 
+    // ============================================
+    // ACTUALIZAR TABLAS DE RESUMEN
+    // ============================================
+
+    const messageDate = new Date(original.timestamp)
+      .toISOString()
+      .split("T")[0];
+
+    // 1. Actualizar daily_analytics
+    // Restar de la clasificación incorrecta
+    await client.query(
+      `
+      UPDATE daily_analytics 
+      SET 
+        positive_count = CASE WHEN $1 = 'positive' THEN positive_count - 1 ELSE positive_count END,
+        neutral_count = CASE WHEN $1 = 'neutral' THEN neutral_count - 1 ELSE neutral_count END,
+        negative_count = CASE WHEN $1 = 'negative' THEN negative_count - 1 ELSE negative_count END
+      WHERE client_id = $2 AND date = $3 AND channel = $4
+    `,
+      [original.sentiment, clientId, messageDate, original.channel]
+    );
+
+    // Sumar a la clasificación correcta
+    await client.query(
+      `
+      UPDATE daily_analytics 
+      SET 
+        positive_count = CASE WHEN $1 = 'positive' THEN positive_count + 1 ELSE positive_count END,
+        neutral_count = CASE WHEN $1 = 'neutral' THEN neutral_count + 1 ELSE neutral_count END,
+        negative_count = CASE WHEN $1 = 'negative' THEN negative_count + 1 ELSE negative_count END,
+        updated_at = NOW()
+      WHERE client_id = $2 AND date = $3 AND channel = $4
+    `,
+      [corrections.sentiment, clientId, messageDate, original.channel]
+    );
+
+    // 2. Actualizar topic_summary
+    // Restar del topic antiguo
+    await client.query(
+      `
+      UPDATE topic_summary 
+      SET 
+        positive_count = CASE WHEN $1 = 'positive' THEN GREATEST(positive_count - 1, 0) ELSE positive_count END,
+        negative_count = CASE WHEN $1 = 'negative' THEN GREATEST(negative_count - 1, 0) ELSE negative_count END,
+        total_count = GREATEST(total_count - 1, 0)
+      WHERE client_id = $2 AND topic = $3
+    `,
+      [original.sentiment, clientId, original.topic]
+    );
+
+    // Sumar al topic nuevo
+    await client.query(
+      `
+      INSERT INTO topic_summary (client_id, topic, total_count, positive_count, negative_count, last_7_days_count, last_30_days_count, updated_at)
+      VALUES ($1, $2, 1, 
+        CASE WHEN $3 = 'positive' THEN 1 ELSE 0 END,
+        CASE WHEN $3 = 'negative' THEN 1 ELSE 0 END,
+        1, 1, NOW())
+      ON CONFLICT (client_id, topic) DO UPDATE SET
+        total_count = topic_summary.total_count + 1,
+        positive_count = topic_summary.positive_count + CASE WHEN $3 = 'positive' THEN 1 ELSE 0 END,
+        negative_count = topic_summary.negative_count + CASE WHEN $3 = 'negative' THEN 1 ELSE 0 END,
+        updated_at = NOW()
+    `,
+      [clientId, corrections.topic, corrections.sentiment]
+    );
+
+    // 3. Actualizar channel_summary
+    // Restar del sentimiento antiguo
+    await client.query(
+      `
+      UPDATE channel_summary 
+      SET 
+        positive_count = CASE WHEN $1 = 'positive' THEN GREATEST(positive_count - 1, 0) ELSE positive_count END,
+        neutral_count = CASE WHEN $1 = 'neutral' THEN GREATEST(neutral_count - 1, 0) ELSE neutral_count END,
+        negative_count = CASE WHEN $1 = 'negative' THEN GREATEST(negative_count - 1, 0) ELSE negative_count END
+      WHERE client_id = $2 AND channel = $3
+    `,
+      [original.sentiment, clientId, original.channel]
+    );
+
+    // Sumar al sentimiento nuevo
+    await client.query(
+      `
+      UPDATE channel_summary 
+      SET 
+        positive_count = CASE WHEN $1 = 'positive' THEN positive_count + 1 ELSE positive_count END,
+        neutral_count = CASE WHEN $1 = 'neutral' THEN neutral_count + 1 ELSE neutral_count END,
+        negative_count = CASE WHEN $1 = 'negative' THEN negative_count + 1 ELSE negative_count END,
+        updated_at = NOW()
+      WHERE client_id = $2 AND channel = $3
+    `,
+      [corrections.sentiment, clientId, original.channel]
+    );
+
     await client.query("COMMIT");
-    console.log("Corrección guardada:", finetuningId);
+    console.log(
+      "✅ Corrección aplicada y resúmenes actualizados:",
+      finetuningId
+    );
     res.json({ success: true });
   } catch (error) {
     await client.query("ROLLBACK");

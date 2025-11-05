@@ -1,4 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import Login from "./components/Login";
 import Layout from "./components/Layout";
 import ClientSelector from "./components/ClientSelector";
 import Dashboard from "./components/Dashboard";
@@ -11,11 +13,55 @@ import DataExplorer from "./components/DataExplorer";
 import Connectors from "./components/Connectors";
 
 export default function App() {
+  const [user, setUser] = useState(null);
   const [currentClient, setCurrentClient] = useState(null);
   const [currentPage, setCurrentPage] = useState("Dashboard");
 
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const savedUser = localStorage.getItem("user");
+
+    if (token && savedUser) {
+      setUser(JSON.parse(savedUser));
+      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+    }
+  }, []);
+
+  const handleLoginSuccess = (userData) => {
+    setUser(userData);
+    const token = localStorage.getItem("token");
+    axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    delete axios.defaults.headers.common["Authorization"];
+    setUser(null);
+    setCurrentClient(null);
+  };
+
+  const handleBackToClients = () => {
+    setCurrentClient(null);
+    setCurrentPage("Dashboard");
+  };
+
+  const handleClientDeleted = () => {
+    handleBackToClients();
+  };
+
+  if (!user) {
+    return <Login onLoginSuccess={handleLoginSuccess} />;
+  }
+
   if (!currentClient) {
-    return <ClientSelector onClientSelect={setCurrentClient} />;
+    return (
+      <ClientSelector
+        onClientSelect={setCurrentClient}
+        onLogout={handleLogout}
+        user={user}
+      />
+    );
   }
 
   const renderPage = () => {
@@ -29,7 +75,12 @@ export default function App() {
       case "Reports":
         return <Reports client={currentClient} />;
       case "Settings":
-        return <Settings client={currentClient} />;
+        return (
+          <Settings
+            client={currentClient}
+            onClientDeleted={handleClientDeleted}
+          />
+        );
       case "Validation":
         return <ValidationQueue client={currentClient} />;
       case "Data Explorer":
@@ -42,7 +93,14 @@ export default function App() {
   };
 
   return (
-    <Layout currentPage={currentPage} onNavigate={setCurrentPage}>
+    <Layout
+      currentPage={currentPage}
+      onNavigate={setCurrentPage}
+      onBackToClients={handleBackToClients}
+      onLogout={handleLogout}
+      currentClient={currentClient}
+      user={user}
+    >
       {renderPage()}
     </Layout>
   );

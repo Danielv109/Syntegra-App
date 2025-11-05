@@ -52,10 +52,10 @@ router.put("/:connectorId/toggle", async (req, res) => {
     const { connectorId } = req.params;
     const { enabled } = req.body;
 
-    await pool.query(
-      "UPDATE connectors SET enabled = $1, status = $2 WHERE id = $3",
-      [enabled, enabled ? "active" : "inactive", connectorId]
-    );
+    await pool.query("UPDATE connectors SET enabled = $1 WHERE id = $2", [
+      enabled,
+      connectorId,
+    ]);
 
     res.json({ success: true });
   } catch (error) {
@@ -87,74 +87,94 @@ router.post("/:connectorId/test", async (req, res) => {
     ]);
 
     if (result.rows.length === 0) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Connector not found" });
+      return res.json({ success: false, message: "Conector no encontrado" });
     }
 
     const connector = result.rows[0];
 
-    // Validar según el tipo
+    // ============================================
+    // SOLO PROBAR - NO MODIFICAR ESTADO
+    // ============================================
+
     let testResult = false;
+    let errorMessage = "Credenciales inválidas";
 
-    switch (connector.type) {
-      case "whatsapp":
-        // Intentar validar API de WhatsApp Business
-        try {
-          await axios.get(`https://graph.facebook.com/v18.0/me`, {
-            headers: { Authorization: `Bearer ${connector.api_key}` },
-            timeout: 5000,
-          });
-          testResult = true;
-        } catch (error) {
-          testResult = false;
-        }
-        break;
+    try {
+      switch (connector.type) {
+        case "whatsapp":
+          try {
+            await axios.get("https://graph.facebook.com/v18.0/me", {
+              headers: { Authorization: "Bearer " + connector.api_key },
+              timeout: 5000,
+            });
+            testResult = true;
+          } catch (error) {
+            if (error.response?.status === 401) {
+              errorMessage = "API key de WhatsApp inválida";
+            } else if (error.code === "ECONNABORTED") {
+              errorMessage = "Timeout - Verifica tu conexión";
+            } else {
+              errorMessage = "Error de conexión con Facebook API";
+            }
+          }
+          break;
 
-      case "instagram":
-      case "facebook":
-        // Validar Meta API
-        try {
-          await axios.get(`https://graph.facebook.com/v18.0/me`, {
-            headers: { Authorization: `Bearer ${connector.api_key}` },
-            timeout: 5000,
-          });
-          testResult = true;
-        } catch (error) {
-          testResult = false;
-        }
-        break;
+        case "instagram":
+        case "facebook":
+          try {
+            await axios.get("https://graph.facebook.com/v18.0/me", {
+              headers: { Authorization: "Bearer " + connector.api_key },
+              timeout: 5000,
+            });
+            testResult = true;
+          } catch (error) {
+            if (error.response?.status === 401) {
+              errorMessage = "API key de Meta inválida";
+            } else {
+              errorMessage = "Error de conexión con Meta API";
+            }
+          }
+          break;
 
-      case "gmail":
-        // Validar formato de API key de Gmail
-        testResult =
-          connector.api_key.includes("@") ||
-          connector.api_key.startsWith("ya29.");
-        break;
+        case "gmail":
+          // Validar formato de credencial de Gmail
+          if (
+            connector.api_key.includes("@") ||
+            connector.api_key.startsWith("ya29.")
+          ) {
+            testResult = true;
+          } else {
+            errorMessage =
+              "Formato de credencial inválido. Debe ser email o token OAuth2";
+          }
+          break;
 
-      default:
-        testResult = false;
+        default:
+          errorMessage = "Tipo de conector no soportado";
+      }
+    } catch (error) {
+      console.error("Error testing connector:", error);
+      errorMessage = "Error al probar conexión: " + error.message;
     }
 
+    // NO MODIFICAR BASE DE DATOS
+    // El connector-worker será el responsable de actualizar status y last_sync
+
     if (testResult) {
-      // Actualizar estado del conector
-      await pool.query(
-        "UPDATE connectors SET status = 'active', last_sync = NOW() WHERE id = $1",
-        [connectorId]
-      );
-      res.json({ success: true, message: "Conexión exitosa" });
+      res.json({
+        success: true,
+        message:
+          "✓ Credenciales válidas. El conector sincronizará automáticamente cuando esté activo.",
+      });
     } else {
-      await pool.query("UPDATE connectors SET status = 'error' WHERE id = $1", [
-        connectorId,
-      ]);
       res.json({
         success: false,
-        message: "API key inválida. Verifica las credenciales.",
+        message: "✗ " + errorMessage,
       });
     }
   } catch (error) {
     console.error("Error testing connector:", error);
-    res.json({ success: false, message: "Error al probar la conexión" });
+    res.json({ success: false, message: "Error al probar conexión" });
   }
 });
 

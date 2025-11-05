@@ -145,12 +145,15 @@ export default function Connectors({ client }) {
       const res = await axios.post(
         `${apiUrl}/api/connectors/${connectorId}/test`
       );
-      alert(
-        res.data.success ? "✓ " + res.data.message : "✗ " + res.data.message
-      );
+      if (res.data.success) {
+        alert("✅ " + res.data.message);
+      } else {
+        alert("⚠️ " + res.data.message);
+      }
+      // Recargar para ver cualquier cambio de estado (aunque ahora no debería haber)
       loadConnectors();
     } catch (error) {
-      alert("✗ Error al probar conexión");
+      alert("❌ Error al probar conexión");
     }
   };
 

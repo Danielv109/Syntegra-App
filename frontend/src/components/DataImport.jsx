@@ -9,6 +9,7 @@ export default function DataImport({ client }) {
   const [message, setMessage] = useState("");
   const [currentJobId, setCurrentJobId] = useState(null);
   const [jobProgress, setJobProgress] = useState(null);
+  const [error, setError] = useState("");
 
   const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
@@ -25,23 +26,36 @@ export default function DataImport({ client }) {
         const res = await axios.get(
           `${apiUrl}/api/process/status/${currentJobId}`
         );
+        console.log("📊 Estado del job:", res.data);
         setJobProgress(res.data);
 
-        if (res.data.state === "completed" || res.data.state === "failed") {
+        if (res.data.state === "completed") {
           setCurrentJobId(null);
           setJobProgress(null);
           loadHistory();
-
-          if (res.data.state === "completed") {
-            setMessage(
-              `✅ Procesamiento completado: ${res.data.processedRecords} mensajes clasificados`
-            );
-          } else {
-            setMessage(`❌ Error en procesamiento: ${res.data.error}`);
-          }
+          setMessage(
+            `✅ Procesamiento completado: ${res.data.processedRecords} mensajes clasificados`
+          );
+          setError("");
+        } else if (res.data.state === "failed") {
+          setCurrentJobId(null);
+          setJobProgress(null);
+          loadHistory();
+          setError(
+            `❌ Error en procesamiento: ${
+              res.data.error || "Error desconocido"
+            }`
+          );
+          setMessage("");
         }
       } catch (error) {
         console.error("Error checking job status:", error);
+        // Si el job no existe, probablemente falló al crearse
+        if (error.response?.status === 404) {
+          setCurrentJobId(null);
+          setJobProgress(null);
+          setError("❌ El trabajo no se encontró. Intenta de nuevo.");
+        }
       }
     }, 2000); // Check cada 2 segundos
 
@@ -67,6 +81,7 @@ export default function DataImport({ client }) {
 
     setUploading(true);
     setMessage("");
+    setError("");
 
     try {
       // Crear FormData y enviar archivo binario
@@ -75,18 +90,23 @@ export default function DataImport({ client }) {
       formData.append("clientId", client.id);
       formData.append("channel", channel);
 
+      console.log("📤 Subiendo archivo:", file.name);
+
       const res = await axios.post(`${apiUrl}/api/upload`, formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
       });
 
+      console.log("✅ Respuesta del servidor:", res.data);
+
       setMessage(`✅ ${res.data.message}`);
       setCurrentJobId(res.data.jobId);
       setFile(null);
     } catch (error) {
-      setMessage(`❌ Error: ${error.response?.data?.error || error.message}`);
-      console.error(error);
+      const errorMsg = error.response?.data?.error || error.message;
+      setError(`❌ Error: ${errorMsg}`);
+      console.error("Error en upload:", error);
     } finally {
       setUploading(false);
     }
@@ -109,7 +129,7 @@ export default function DataImport({ client }) {
           </h3>
 
           <div className="mb-5">
-            <label className="block mb-2 font-medium text-text-secondary text-[13px]">
+            <label className="block text-sm font-medium text-text-secondary mb-2">
               Canal
             </label>
             <select
@@ -125,7 +145,7 @@ export default function DataImport({ client }) {
           </div>
 
           <div className="mb-5">
-            <label className="block mb-2 font-medium text-text-secondary text-[13px]">
+            <label className="block text-sm font-medium text-text-secondary mb-2">
               Archivo CSV
             </label>
             <input
@@ -134,6 +154,12 @@ export default function DataImport({ client }) {
               onChange={(e) => setFile(e.target.files?.[0] || null)}
               className="input-field text-[13px]"
             />
+            {file && (
+              <div className="mt-2 text-xs text-text-muted">
+                Archivo seleccionado: {file.name} (
+                {(file.size / 1024).toFixed(2)} KB)
+              </div>
+            )}
           </div>
 
           <button
@@ -152,31 +178,39 @@ export default function DataImport({ client }) {
             <div className="mt-5">
               <div className="flex justify-between mb-2">
                 <span className="text-[13px] text-text-secondary">
-                  Procesando: {jobProgress.processedRecords}/
-                  {jobProgress.totalRecords} mensajes
+                  {jobProgress.state === "processing"
+                    ? "Procesando"
+                    : "En cola"}{" "}
+                  : {jobProgress.processedRecords || 0}/
+                  {jobProgress.totalRecords || 0} mensajes
                 </span>
                 <span className="text-[13px] text-accent-primary font-semibold">
-                  {jobProgress.progress}%
+                  {jobProgress.progress || 0}%
                 </span>
               </div>
               <div className="w-full h-2 bg-dark-border rounded overflow-hidden">
                 <div
                   className="h-full bg-gradient-to-r from-accent-primary to-accent-secondary transition-all duration-300"
-                  style={{ width: `${jobProgress.progress}%` }}
+                  style={{ width: `${jobProgress.progress || 0}%` }}
                 />
               </div>
+              {jobProgress.state === "pending" && (
+                <div className="mt-2 text-xs text-text-muted">
+                  ⏳ Esperando en cola...
+                </div>
+              )}
             </div>
           )}
 
           {message && (
-            <div
-              className={`mt-4 px-4 py-3 rounded-md text-[13px] ${
-                message.startsWith("✅")
-                  ? "bg-accent-success/10 text-accent-success border border-accent-success/20"
-                  : "bg-accent-error/10 text-accent-error border border-accent-error/20"
-              }`}
-            >
+            <div className="mt-4 px-4 py-3 rounded-md text-[13px] bg-accent-success/10 text-accent-success border border-accent-success/20">
               {message}
+            </div>
+          )}
+
+          {error && (
+            <div className="mt-4 px-4 py-3 rounded-md text-[13px] bg-accent-error/10 text-accent-error border border-accent-error/20">
+              {error}
             </div>
           )}
         </div>
@@ -213,14 +247,17 @@ Excelente calidad,2025-01-03,email`}
               <tr>
                 <td
                   colSpan={5}
-                  className="py-10 text-center text-text-disabled text-[13px]"
+                  className="py-16 text-center text-text-disabled"
                 >
                   No hay cargas recientes
                 </td>
               </tr>
             ) : (
               history.map((item) => (
-                <tr key={item.jobId} className="table-row">
+                <tr
+                  key={item.jobId}
+                  className="table-row hover:bg-dark-hover transition-colors"
+                >
                   <td className="py-3.5 text-text-secondary text-[13px]">
                     {item.filename}
                   </td>
@@ -232,18 +269,23 @@ Excelente calidad,2025-01-03,email`}
                   </td>
                   <td className="py-3.5">
                     <span
-                      className={`badge capitalize font-medium ${
+                      className={`badge ${
                         item.status === "completed"
                           ? "badge-success"
                           : item.status === "processing"
                           ? "badge-warning"
                           : item.status === "failed"
                           ? "badge-error"
-                          : "bg-dark-border text-text-muted border border-dark-border"
-                      }`}
+                          : "bg-dark-border text-text-muted border-dark-border"
+                      } capitalize font-medium`}
                     >
                       {item.status}
                     </span>
+                    {item.error && (
+                      <div className="text-xs text-accent-error mt-1">
+                        {item.error}
+                      </div>
+                    )}
                   </td>
                   <td className="py-3.5 text-xs text-text-disabled">
                     {new Date(item.createdAt).toLocaleString()}

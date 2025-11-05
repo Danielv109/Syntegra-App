@@ -8,7 +8,7 @@
   }
 
   body {
-    @apply m-0 font-sans antialiased bg-dark-bg text-text-secondary;
+    @apply m-0 font-sans antialiased bg-[#000000] text-text-secondary;
     font-family: "Inter", system-ui, -apple-system, sans-serif;
   }
 
@@ -76,5 +76,39 @@
 
   .badge-error {
     @apply badge bg-accent-error/10 text-accent-error border border-accent-error/20;
+  }
+
+  /* Textura de cuadrícula técnica - más visible */
+  .technical-grid {
+    background-color: #000000;
+    background-image: linear-gradient(
+        rgba(255, 255, 255, 0.04) 1px,
+        transparent 1px
+      ),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+      linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+    background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
+    background-position: -1px -1px, -1px -1px, -1px -1px, -1px -1px;
+  }
+}
+
+@layer utilities {
+  /* Sin animaciones de blob */
+
+  /* Animación de toast */
+  @keyframes slide-in {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  .animate-slide-in {
+    animation: slide-in 0.3s ease-out;
   }
 }

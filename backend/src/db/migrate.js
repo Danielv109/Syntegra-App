@@ -1,4 +1,5 @@
 import pool from "./connection.js";
+import bcrypt from "bcryptjs";
 
 async function migrate() {
   const client = await pool.connect();
@@ -14,50 +15,49 @@ async function migrate() {
         industry VARCHAR(100),
         active BOOLEAN DEFAULT true,
         total_messages INTEGER DEFAULT 0,
-        last_analysis TIMESTAMP,
-        created_at TIMESTAMP DEFAULT NOW()
+        created_at TIMESTAMP DEFAULT NOW(),
+        last_analysis TIMESTAMP
       );
     `);
 
-    // Tabla de mensajes
+    // Tabla de mensajes con ON DELETE CASCADE
     await client.query(`
       CREATE TABLE IF NOT EXISTS messages (
         id VARCHAR(50) PRIMARY KEY,
-        client_id VARCHAR(50) REFERENCES clients(id),
+        client_id VARCHAR(50) REFERENCES clients(id) ON DELETE CASCADE,
         text TEXT NOT NULL,
         channel VARCHAR(50),
         timestamp TIMESTAMP DEFAULT NOW(),
         sentiment VARCHAR(20),
         topic VARCHAR(100),
-        intent VARCHAR(50),
+        intent VARCHAR(100),
         requires_validation BOOLEAN DEFAULT false,
-        validated BOOLEAN DEFAULT false,
-        created_at TIMESTAMP DEFAULT NOW()
+        validated BOOLEAN DEFAULT false
       );
     `);
 
-    // Tabla de conectores
+    // Tabla de conectores con ON DELETE CASCADE
     await client.query(`
       CREATE TABLE IF NOT EXISTS connectors (
         id VARCHAR(50) PRIMARY KEY,
-        client_id VARCHAR(50) REFERENCES clients(id),
+        client_id VARCHAR(50) REFERENCES clients(id) ON DELETE CASCADE,
         type VARCHAR(50) NOT NULL,
         name VARCHAR(255) NOT NULL,
+        api_key TEXT NOT NULL,
         enabled BOOLEAN DEFAULT false,
         status VARCHAR(20) DEFAULT 'inactive',
         frequency VARCHAR(20) DEFAULT 'daily',
-        api_key TEXT,
         last_sync TIMESTAMP,
         total_messages INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT NOW()
       );
     `);
 
-    // Tabla de trabajos con soporte para API y CSV
+    // Tabla de trabajos con ON DELETE CASCADE
     await client.query(`
       CREATE TABLE IF NOT EXISTS jobs (
         id VARCHAR(50) PRIMARY KEY,
-        client_id VARCHAR(50) REFERENCES clients(id),
+        client_id VARCHAR(50) REFERENCES clients(id) ON DELETE CASCADE,
         type VARCHAR(50) NOT NULL,
         file_path VARCHAR(500),
         payload JSONB,
@@ -75,72 +75,69 @@ async function migrate() {
       );
     `);
 
-    // Tabla de dataset para fine-tuning
+    // Tabla de fine-tuning dataset con ON DELETE CASCADE
     await client.query(`
       CREATE TABLE IF NOT EXISTS finetuning_dataset (
         id VARCHAR(50) PRIMARY KEY,
-        client_id VARCHAR(50) REFERENCES clients(id),
-        message_id VARCHAR(50) REFERENCES messages(id),
+        client_id VARCHAR(50) REFERENCES clients(id) ON DELETE CASCADE,
+        message_id VARCHAR(50),
         text TEXT NOT NULL,
         ai_sentiment VARCHAR(20),
         ai_topic VARCHAR(100),
-        ai_intent VARCHAR(50),
+        ai_intent VARCHAR(100),
         human_sentiment VARCHAR(20),
         human_topic VARCHAR(100),
-        human_intent VARCHAR(50),
+        human_intent VARCHAR(100),
         corrected_by VARCHAR(100),
         corrected_at TIMESTAMP DEFAULT NOW()
       );
     `);
 
-    // Tabla de reportes
+    // Tabla de reportes con ON DELETE CASCADE
     await client.query(`
       CREATE TABLE IF NOT EXISTS reports (
         id VARCHAR(50) PRIMARY KEY,
-        client_id VARCHAR(50) REFERENCES clients(id),
+        client_id VARCHAR(50) REFERENCES clients(id) ON DELETE CASCADE,
         title VARCHAR(255),
         type VARCHAR(50),
         filename VARCHAR(255),
-        status VARCHAR(20) DEFAULT 'processing',
+        status VARCHAR(20) DEFAULT 'pending',
         created_at TIMESTAMP DEFAULT NOW()
       );
     `);
 
-    // Tabla de configuraciones por cliente
+    // Tabla de configuraciones con ON DELETE CASCADE
     await client.query(`
       CREATE TABLE IF NOT EXISTS client_settings (
-        id SERIAL PRIMARY KEY,
-        client_id VARCHAR(50) REFERENCES clients(id) UNIQUE,
-        notifications JSONB DEFAULT '{"email": false, "slack": false}',
-        processing JSONB DEFAULT '{"autoClassify": true, "humanValidation": false}',
-        integrations JSONB DEFAULT '{}',
-        theme JSONB DEFAULT '{"mode": "dark"}',
+        client_id VARCHAR(50) PRIMARY KEY REFERENCES clients(id) ON DELETE CASCADE,
+        notifications JSONB,
+        processing JSONB,
+        integrations JSONB,
         updated_at TIMESTAMP DEFAULT NOW()
       );
     `);
 
-    // TABLAS DE RESUMEN PARA ANALÍTICAS (RENDIMIENTO)
+    // Tabla de analytics diarios con ON DELETE CASCADE
     await client.query(`
       CREATE TABLE IF NOT EXISTS daily_analytics (
         id SERIAL PRIMARY KEY,
-        client_id VARCHAR(50) REFERENCES clients(id),
+        client_id VARCHAR(50) REFERENCES clients(id) ON DELETE CASCADE,
         date DATE NOT NULL,
-        channel VARCHAR(50),
+        channel VARCHAR(50) NOT NULL,
         total_messages INTEGER DEFAULT 0,
         positive_count INTEGER DEFAULT 0,
         neutral_count INTEGER DEFAULT 0,
         negative_count INTEGER DEFAULT 0,
-        avg_sentiment_score NUMERIC(5,2),
-        created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW(),
         UNIQUE(client_id, date, channel)
       );
     `);
 
+    // Tabla de resumen de topics con ON DELETE CASCADE
     await client.query(`
       CREATE TABLE IF NOT EXISTS topic_summary (
         id SERIAL PRIMARY KEY,
-        client_id VARCHAR(50) REFERENCES clients(id),
+        client_id VARCHAR(50) REFERENCES clients(id) ON DELETE CASCADE,
         topic VARCHAR(100) NOT NULL,
         total_count INTEGER DEFAULT 0,
         positive_count INTEGER DEFAULT 0,
@@ -152,19 +149,51 @@ async function migrate() {
       );
     `);
 
+    // Tabla de resumen por canal con ON DELETE CASCADE
     await client.query(`
       CREATE TABLE IF NOT EXISTS channel_summary (
         id SERIAL PRIMARY KEY,
-        client_id VARCHAR(50) REFERENCES clients(id),
+        client_id VARCHAR(50) REFERENCES clients(id) ON DELETE CASCADE,
         channel VARCHAR(50) NOT NULL,
         total_messages INTEGER DEFAULT 0,
         positive_count INTEGER DEFAULT 0,
         neutral_count INTEGER DEFAULT 0,
         negative_count INTEGER DEFAULT 0,
-        avg_response_time_hours NUMERIC(10,2),
+        avg_response_time_hours NUMERIC(10, 2),
         updated_at TIMESTAMP DEFAULT NOW(),
         UNIQUE(client_id, channel)
       );
+    `);
+
+    // Tabla de usuarios (autenticación)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id VARCHAR(50) PRIMARY KEY,
+        username VARCHAR(100) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        role VARCHAR(20) NOT NULL,
+        full_name VARCHAR(255),
+        created_at TIMESTAMP DEFAULT NOW(),
+        last_login TIMESTAMP
+      );
+    `);
+
+    // Generar hash correcto para "admin123"
+    const adminPasswordHash = await bcrypt.hash("admin123", 10);
+
+    // Crear usuario admin por defecto
+    await client.query(
+      `
+      INSERT INTO users (id, username, password_hash, role, full_name)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (username) DO UPDATE SET password_hash = $3;
+    `,
+      ["user_admin", "admin", adminPasswordHash, "admin", "Administrador"]
+    );
+
+    // Índice para búsquedas rápidas
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
     `);
 
     // Índices para mejor rendimiento
