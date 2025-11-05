@@ -39,48 +39,52 @@ router.post("/generate", async (req, res) => {
       return res.status(404).json({ error: "Client not found" });
     const client = clientResult.rows[0];
 
+    console.log(
+      `📄 Generando reporte para ${client.name} - Solo tablas de resumen`
+    );
+
     // ============================================
     // 100% TABLAS DE RESUMEN - CERO QUERIES A messages
     // ============================================
 
-    // Total desde channel_summary
+    // 1. Total desde channel_summary
     const totalMessagesResult = await pool.query(
       "SELECT COALESCE(SUM(total_messages), 0) as total FROM channel_summary WHERE client_id = $1",
       [clientId]
     );
     const totalMessages = parseInt(totalMessagesResult.rows[0]?.total || 0);
 
-    // Quejas críticas desde messages (única query permitida para reportes)
+    // 2. Quejas críticas desde topic_summary (aproximación sin messages)
     const criticalComplaintsResult = await pool.query(
-      "SELECT COUNT(*) as count FROM messages WHERE client_id = $1 AND sentiment = 'negative' AND intent = 'queja'",
+      "SELECT COALESCE(SUM(negative_count), 0) as count FROM topic_summary WHERE client_id = $1 AND topic IN ('queja', 'reclamo', 'problema')",
       [clientId]
     );
 
-    // Sentimiento positivo desde channel_summary
+    // 3. Sentimiento positivo desde channel_summary
     const positiveRateResult = await pool.query(
       "SELECT ROUND((SUM(positive_count)::numeric / NULLIF(SUM(total_messages), 0)::numeric) * 100, 0) as rate FROM channel_summary WHERE client_id = $1",
       [clientId]
     );
 
-    // Canales activos desde channel_summary
+    // 4. Canales activos desde channel_summary
     const activeChannelsResult = await pool.query(
       "SELECT COUNT(*) as count FROM channel_summary WHERE client_id = $1",
       [clientId]
     );
 
-    // Sentimiento por canal desde channel_summary
+    // 5. Sentimiento por canal desde channel_summary
     const sentimentByChannelResult = await pool.query(
       "SELECT channel, positive_count as positive, neutral_count as neutral, negative_count as negative FROM channel_summary WHERE client_id = $1",
       [clientId]
     );
 
-    // Topics desde topic_summary
+    // 6. Topics desde topic_summary
     const topicsResult = await pool.query(
       "SELECT topic, total_count as count, CASE WHEN positive_count > negative_count THEN 'positive' WHEN negative_count > positive_count THEN 'negative' ELSE 'neutral' END as sentiment FROM topic_summary WHERE client_id = $1 ORDER BY total_count DESC LIMIT 5",
       [clientId]
     );
 
-    // Alertas desde topic_summary
+    // 7. Alertas desde topic_summary
     const alertsResult = await pool.query(
       "SELECT topic, negative_count, ROUND((negative_count::numeric / NULLIF(total_count, 0)::numeric) * 100, 0) as negative_rate FROM topic_summary WHERE client_id = $1 AND negative_count > 0 ORDER BY negative_count DESC LIMIT 3",
       [clientId]
@@ -102,7 +106,7 @@ router.post("/generate", async (req, res) => {
         },
         {
           label: "Sentimiento Positivo",
-          value: (positiveRateResult.rows[0]?.rate || 0) + "%",
+          value: `${positiveRateResult.rows[0]?.rate || 0}%`,
           delta: null,
           trend:
             parseInt(positiveRateResult.rows[0]?.rate || 0) >= 60
@@ -128,26 +132,22 @@ router.post("/generate", async (req, res) => {
         sentiment: row.sentiment,
       })),
       alerts: alertsResult.rows.map((row) => ({
-        message:
-          "Tema problemático: '" +
-          row.topic +
-          "' con " +
-          row.negative_count +
-          " menciones negativas (" +
-          row.negative_rate +
-          "% del total)",
+        message: `Tema problemático: "${row.topic}" con ${row.negative_count} menciones negativas (${row.negative_rate}% del total)`,
         severity: row.negative_rate > 50 ? "high" : "medium",
       })),
     };
 
+    console.log(`📊 Datos del reporte calculados desde resúmenes`);
+
     const { filename, filepath } = await generateReport(reportData, client);
     const reportId = "rpt_" + Date.now();
+
     await pool.query(
       "INSERT INTO reports (id, client_id, title, type, filename, status, created_at) VALUES ($1, $2, $3, $4, $5, 'ready', NOW())",
       [
         reportId,
         clientId,
-        title || "Reporte " + new Date().toLocaleDateString(),
+        title || `Reporte ${new Date().toLocaleDateString()}`,
         type || "custom",
         filename,
       ]
@@ -156,9 +156,12 @@ router.post("/generate", async (req, res) => {
     const newReport = await pool.query("SELECT * FROM reports WHERE id = $1", [
       reportId,
     ]);
+
+    console.log(`✅ Reporte generado: ${filename}`);
+
     res.json({ success: true, report: newReport.rows[0] });
   } catch (error) {
-    console.error("Error generating report:", error);
+    console.error("❌ Error generating report:", error);
     res.status(500).json({ error: "Failed to generate report" });
   }
 });

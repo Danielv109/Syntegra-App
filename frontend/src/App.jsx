@@ -23,6 +23,7 @@ export default function App() {
 
     if (token && savedUser) {
       setUser(JSON.parse(savedUser));
+      // Configurar token en TODAS las peticiones axios
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
     }
   }, []);
@@ -30,12 +31,14 @@ export default function App() {
   const handleLoginSuccess = (userData) => {
     setUser(userData);
     const token = localStorage.getItem("token");
+    // Configurar token en TODAS las peticiones axios
     axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
   };
 
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    // Eliminar token de los headers
     delete axios.defaults.headers.common["Authorization"];
     setUser(null);
     setCurrentClient(null);

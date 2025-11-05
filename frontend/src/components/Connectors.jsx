@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
+import Toast from "./Toast";
 
 function ConnectorCard({ connector, onToggle, onTest, onDelete }) {
   return (
@@ -83,23 +84,31 @@ export default function Connectors({ client }) {
     apiKey: "",
     frequency: "hourly",
   });
+  const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState(null);
 
   const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
   useEffect(() => {
     loadConnectors();
-  }, []);
+  }, [client]);
 
   const loadConnectors = async () => {
-    try {
-      const res = await axios.get(`${apiUrl}/api/connectors/${client.id}`);
-      setConnectors(res.data.connectors);
-    } catch (error) {
-      console.error("Error loading connectors:", error);
-    }
+    const res = await axios.get(`${apiUrl}/api/connectors/${client.id}`);
+    setConnectors(res.data.connectors || []);
+  };
+
+  const showToast = (message, type = "success") => {
+    setToast({ message, type });
   };
 
   const handleCreate = async () => {
+    if (!newConnector.type || !newConnector.name || !newConnector.apiKey) {
+      showToast("Por favor completa todos los campos", "error");
+      return;
+    }
+
+    setLoading(true);
     try {
       await axios.post(`${apiUrl}/api/connectors`, {
         clientId: client.id,
@@ -113,92 +122,153 @@ export default function Connectors({ client }) {
         frequency: "hourly",
       });
       loadConnectors();
+      showToast("Conector creado exitosamente", "success");
     } catch (error) {
-      console.error("Error creating connector:", error);
+      showToast("Error al crear conector", "error");
+    } finally {
+      setLoading(false);
     }
   };
 
   const toggleConnector = async (connectorId, enabled) => {
-    try {
-      await axios.put(`${apiUrl}/api/connectors/${connectorId}/toggle`, {
-        enabled,
-      });
-      loadConnectors();
-    } catch (error) {
-      console.error("Error toggling connector:", error);
-    }
+    await axios.put(`${apiUrl}/api/connectors/${connectorId}/toggle`, {
+      enabled,
+    });
+    loadConnectors();
+    showToast(
+      enabled ? "Conector activado" : "Conector desactivado",
+      "success"
+    );
+  };
+
+  const testConnection = async (connectorId) => {
+    const res = await axios.post(
+      `${apiUrl}/api/connectors/${connectorId}/test`
+    );
+    showToast(res.data.message, res.data.success ? "success" : "error");
   };
 
   const deleteConnector = async (connectorId) => {
     if (!confirm("¿Estás seguro de eliminar este conector?")) return;
-
-    try {
-      await axios.delete(`${apiUrl}/api/connectors/${connectorId}`);
-      loadConnectors();
-    } catch (error) {
-      console.error("Error deleting connector:", error);
-    }
-  };
-
-  const testConnection = async (connectorId) => {
-    try {
-      const res = await axios.post(
-        `${apiUrl}/api/connectors/${connectorId}/test`
-      );
-      if (res.data.success) {
-        alert("✅ " + res.data.message);
-      } else {
-        alert("⚠️ " + res.data.message);
-      }
-      // Recargar para ver cualquier cambio de estado (aunque ahora no debería haber)
-      loadConnectors();
-    } catch (error) {
-      alert("❌ Error al probar conexión");
-    }
+    await axios.delete(`${apiUrl}/api/connectors/${connectorId}`);
+    loadConnectors();
+    showToast("Conector eliminado", "success");
   };
 
   return (
     <div>
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-3xl mb-2 text-text-primary font-bold">
             Connectors - {client.name}
           </h1>
-          <p className="text-text-muted text-sm">
-            Conecta tus canales de comunicación para importación automática
+          <p className="text-text-muted mb-8 text-sm">
+            Conecta APIs externas para ingesta automática de mensajes.
           </p>
         </div>
-        <button onClick={() => setShowModal(true)} className="btn-primary">
+        <button onClick={() => setShowModal(true)} className="btn-primary mb-6">
           + Nuevo Conector
         </button>
       </div>
 
-      <div className="flex flex-col gap-4">
-        {connectors.map((connector) => (
-          <ConnectorCard
-            key={connector.id}
-            connector={connector}
-            onToggle={(enabled) => toggleConnector(connector.id, enabled)}
-            onTest={() => testConnection(connector.id)}
-            onDelete={() => deleteConnector(connector.id)}
-          />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {connectors.map((conn) => (
+          <div key={conn.id} className="card">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-text-primary mb-1">
+                  {conn.name}
+                </h3>
+                <p className="text-sm text-text-muted capitalize">
+                  {conn.type}
+                </p>
+              </div>
+              <span
+                className={`badge ${
+                  conn.status === "active"
+                    ? "badge-success"
+                    : conn.status === "error"
+                    ? "badge-error"
+                    : "bg-dark-border text-text-muted"
+                } capitalize font-medium`}
+              >
+                {conn.status}
+              </span>
+            </div>
+
+            <div className="space-y-2 mb-4 text-sm">
+              <div className="flex justify-between">
+                <span className="text-text-disabled">Frecuencia:</span>
+                <span className="text-text-muted capitalize">
+                  {conn.frequency}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-text-disabled">Mensajes:</span>
+                <span className="text-text-muted">
+                  {conn.total_messages || 0}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-text-disabled">Última sync:</span>
+                <span className="text-text-muted text-xs">
+                  {conn.last_sync
+                    ? new Date(conn.last_sync).toLocaleString()
+                    : "Nunca"}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => toggleConnector(conn.id, !conn.enabled)}
+                className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                  conn.enabled
+                    ? "bg-dark-border text-text-muted hover:bg-dark-hover"
+                    : "bg-accent-primary text-white hover:bg-accent-secondary"
+                }`}
+              >
+                {conn.enabled ? "Desactivar" : "Activar"}
+              </button>
+              <button
+                onClick={() => testConnection(conn.id)}
+                className="px-3 py-2 bg-dark-border hover:bg-dark-hover text-text-muted rounded-md text-sm font-medium transition-all"
+              >
+                Probar
+              </button>
+              <button
+                onClick={() => deleteConnector(conn.id)}
+                className="px-3 py-2 bg-dark-border hover:bg-dark-hover text-text-muted rounded-md text-sm font-medium transition-all"
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
         ))}
 
         {connectors.length === 0 && (
-          <div className="card text-center py-16">
-            <div className="text-5xl mb-4">🔌</div>
-            <div className="text-lg text-text-primary font-semibold mb-2">
-              No hay conectores configurados
+          <div className="col-span-full card text-center py-16">
+            <div className="text-6xl mb-4">🔌</div>
+            <div className="text-xl text-text-primary font-semibold mb-2">
+              Sin conectores
             </div>
-            <div className="text-sm text-text-muted">
-              Crea tu primer conector para automatizar la importación de datos
+            <div className="text-text-muted text-sm">
+              Crea tu primer conector para automatizar la ingesta
             </div>
           </div>
         )}
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-dark-card border border-dark-border rounded-xl p-8 max-w-md w-full mx-4">
             <h2 className="text-2xl font-bold text-text-primary mb-6">
               Nuevo Conector
@@ -215,10 +285,11 @@ export default function Connectors({ client }) {
                 }
                 className="input-field"
               >
+                <option value="">Seleccionar...</option>
                 <option value="whatsapp">WhatsApp Business API</option>
-                <option value="instagram">Instagram</option>
-                <option value="facebook">Facebook</option>
-                <option value="gmail">Gmail</option>
+                <option value="gmail">Gmail API</option>
+                <option value="instagram">Instagram Graph API</option>
+                <option value="facebook">Facebook Messenger</option>
               </select>
             </div>
 
@@ -242,13 +313,13 @@ export default function Connectors({ client }) {
                 API Key
               </label>
               <input
-                type="text"
+                type="password"
                 value={newConnector.apiKey}
                 onChange={(e) =>
                   setNewConnector({ ...newConnector, apiKey: e.target.value })
                 }
                 className="input-field"
-                placeholder="Tu clave de API"
+                placeholder="Tu API key"
               />
             </div>
 
@@ -267,7 +338,7 @@ export default function Connectors({ client }) {
                 className="input-field"
               >
                 <option value="hourly">Cada hora</option>
-                <option value="daily">Diario</option>
+                <option value="daily">Diaria</option>
                 <option value="weekly">Semanal</option>
               </select>
             </div>
@@ -275,10 +346,10 @@ export default function Connectors({ client }) {
             <div className="flex gap-3">
               <button
                 onClick={handleCreate}
-                disabled={!newConnector.name || !newConnector.apiKey}
+                disabled={loading}
                 className="btn-primary flex-1"
               >
-                Crear Conector
+                {loading ? "Creando..." : "Crear Conector"}
               </button>
               <button
                 onClick={() => setShowModal(false)}

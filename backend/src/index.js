@@ -22,10 +22,12 @@ const PORT = process.env.PORT || 4000;
 app.use(cors());
 app.use(express.json());
 
-// Ruta de autenticación (pública)
+// Ruta de autenticación (pública - sin protección)
 app.use("/api/auth", authRoutes);
 
-// Todas las demás rutas requieren autenticación
+// ============================================
+// TODAS LAS RUTAS PROTEGIDAS CON AUTENTICACIÓN
+// ============================================
 app.use("/api/clients", authenticate, clientsRoutes);
 app.use("/api/insights", authenticate, insightsRoutes);
 app.use("/api/analytics", authenticate, analyticsRoutes);
@@ -43,5 +45,5 @@ app.get("/", (req, res) => {
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Backend running on port ${PORT}`);
-  console.log(`🔒 Autenticación JWT activa`);
+  console.log(`🔒 Autenticación JWT activa - Todas las rutas protegidas`);
 });
